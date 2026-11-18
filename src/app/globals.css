@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+/* Design tokens. The app uses a light workspace with a dark navigation rail. */
+@theme {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --color-page: #f3f4f7;
+  --color-surface: #ffffff;
+  --color-border: #e3e5ea;
+  --color-border-strong: #cfd3db;
+  --color-ink: #14171f;
+  --color-ink-2: #4b5160;
+  --color-ink-3: #808796;
+
+  --color-brand: #2a78d6;
+  --color-brand-hover: #256abf;
+  --color-brand-soft: #e8f1fc;
+
+  --color-nav: #171a22;
+  --color-nav-2: #1f2330;
+  --color-nav-ink: #c9cdd8;
+  --color-nav-ink-2: #8b91a1;
+
+  --color-good: #0ca30c;
+  --color-good-text: #006300;
+  --color-warning: #fab219;
+  --color-serious: #ec835a;
+  --color-critical: #d03b3b;
+
+  /* Categorical chart slots (validated order — assign in sequence, never cycle). */
+  --color-series-1: #2a78d6;
+  --color-series-2: #eb6834;
+  --color-series-3: #1baf7a;
+  --color-series-4: #eda100;
+  --color-series-5: #e87ba4;
+  --color-series-6: #008300;
+  --color-series-7: #6250d6;
+  --color-series-8: #e34948;
+
+  --color-grid: #e1e0d9;
+  --color-axis: #c3c2b7;
+  --color-muted-ink: #898781;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  background: var(--color-page);
+  color: var(--color-ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Thin scrollbars inside the nav rail */
+.nav-scroll::-webkit-scrollbar { width: 6px; }
+.nav-scroll::-webkit-scrollbar-thumb { background: #2c3140; border-radius: 3px; }
+
+/* Recharts focus outline cleanup */
+.recharts-wrapper *:focus { outline: none; }

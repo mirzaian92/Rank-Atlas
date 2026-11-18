@@ -1,0 +1,177 @@
+/** MOCK generators for keyword-level reports. Placeholder data for UI design only. */
+import type {
+  KeywordDifficultyReport, KeywordGap, KeywordGapRow, KeywordMagic, KeywordMetrics, KeywordOverview,
+  SearchIntent, SerpAnalysis, SerpResult,
+} from "@/lib/reports/types";
+import { lastMonths, rng } from "./rng";
+import { COMPETITOR_STEMS, MODIFIERS_POST, MODIFIERS_PRE, QUESTIONS, SERP_FEATURES, TLDS } from "./words";
+import type { MockCtx } from "./domain";
+import { mockRankedKeywords } from "./domain";
+
+const INTENTS: SearchIntent[] = ["informational", "navigational", "commercial", "transactional"];
+
+export function mockKeywordMetrics(keyword: string, ctx: MockCtx): KeywordMetrics {
+  const r = rng(`${keyword}|${ctx.locationCode}|kwm`);
+  const words = keyword.trim().split(/\s+/).length;
+  const volume = r.logInt(10, Math.max(100, 400000 / Math.pow(words, 2)));
+  const months = lastMonths(12);
+  const seasonal = r.float(0, 0.35);
+  const phase = r.int(0, 11);
+  const q = keyword.toLowerCase();
+  const intent: SearchIntent = /^(how|what|why|when|where|can|is)\b/.test(q)
+    ? "informational"
+    : /\b(buy|price|pricing|cheap|discount|coupon)\b/.test(q)
+      ? "transactional"
+      : /\b(best|top|vs|review|reviews|alternatives|compare)\b/.test(q)
+        ? "commercial"
+        : r.pick(INTENTS);
+  return {
+    keyword,
+    searchVolume: volume,
+    cpc: r.chance(0.92) ? Math.round(r.float(0.1, 22) * 100) / 100 : null,
+    competition: Math.round(r.next() * 100) / 100,
+    keywordDifficulty: Math.min(100, Math.round(r.float(0, 1) * 70 + 30 / words)),
+    intent,
+    monthlySearches: months.map((date, i) => ({
+      date,
+      searchVolume: Math.round(volume * (1 + seasonal * Math.sin(((i + phase) / 12) * Math.PI * 2)) * r.float(0.92, 1.08)),
+    })),
+    serpFeatures: SERP_FEATURES.filter(() => r.chance(0.3)),
+    resultsCount: r.logInt(10000, 2_000_000_000),
+    wordCount: words,
+  };
+}
+
+function expand(seed: string, r: ReturnType<typeof rng>, n: number, questionsOnly = false): string[] {
+  const out = new Set<string>();
+  let guard = 0;
+  while (out.size < n && guard++ < n * 10) {
+    const roll = r.next();
+    if (questionsOnly || roll < 0.15) out.add(`${r.pick(QUESTIONS)} ${seed}`);
+    else if (roll < 0.5) out.add(`${seed} ${r.pick(MODIFIERS_POST)}`);
+    else if (roll < 0.8) out.add(`${r.pick(MODIFIERS_PRE)} ${seed}`);
+    else out.add(`${r.pick(MODIFIERS_PRE)} ${seed} ${r.pick(MODIFIERS_POST)}`);
+  }
+  return [...out];
+}
+
+export function mockSerp(keyword: string, ctx: MockCtx, device = "desktop"): SerpResult[] {
+  const r = rng(`${keyword}|${ctx.locationCode}|${device}|serp`);
+  const results: SerpResult[] = [];
+  let rank = 1;
+  if (r.chance(0.4)) {
+    const d = `${r.pick(COMPETITOR_STEMS)}${r.pick(TLDS)}`;
+    results.push({ rank: rank++, type: "featured_snippet", title: `${keyword} — explained`, url: `https://${d}/guide/${keyword.replace(/\s+/g, "-")}`, domain: d, description: "Mock featured snippet text.", etv: null, domainRank: r.int(20, 90), backlinks: r.logInt(100, 2_000_000) });
+  }
+  for (let i = 0; i < 10; i++) {
+    const d = `${r.pick(COMPETITOR_STEMS)}${r.pick(["", "hq", "app"])}${r.pick(TLDS)}`;
+    results.push({
+      rank: rank++,
+      type: "organic",
+      title: `${keyword.replace(/\b\w/g, (c) => c.toUpperCase())} | ${d}`,
+      url: `https://${d}/${r.pick(["blog", "guide", "pricing", "learn"])}/${keyword.replace(/\s+/g, "-")}`,
+      domain: d,
+      description: "Mock result description for layout purposes.",
+      etv: Math.round(r.logInt(10, 20000)),
+      domainRank: r.int(10, 95),
+      backlinks: r.logInt(50, 5_000_000),
+    });
+    if (i === 2 && r.chance(0.6)) results.push({ rank: rank++, type: "people_also_ask", title: "People also ask", url: "", domain: "", description: null, etv: null, domainRank: null, backlinks: null });
+  }
+  return results;
+}
+
+export function mockKeywordOverview(keyword: string, ctx: MockCtx): KeywordOverview {
+  const r = rng(`${keyword}|${ctx.locationCode}|ov`);
+  return {
+    keyword: mockKeywordMetrics(keyword, ctx),
+    variations: expand(keyword, r, 10).map((k) => mockKeywordMetrics(k, ctx)).sort((a, b) => b.searchVolume - a.searchVolume),
+    questions: expand(keyword, r, 6, true).map((k) => mockKeywordMetrics(k, ctx)).sort((a, b) => b.searchVolume - a.searchVolume),
+    serp: mockSerp(keyword, ctx),
+  };
+}
+
+export function mockKeywordMagic(seed: string, ctx: MockCtx, mode: string): KeywordMagic {
+  const r = rng(`${seed}|${ctx.locationCode}|magic|${mode}`);
+  const kws = expand(seed, r, 400).map((k) => mockKeywordMetrics(k, ctx)).sort((a, b) => b.searchVolume - a.searchVolume);
+  const groups = new Map<string, { count: number; volume: number }>();
+  const seedWords = new Set(seed.toLowerCase().split(/\s+/));
+  for (const k of kws) {
+    for (const w of k.keyword.toLowerCase().split(/\s+/)) {
+      if (seedWords.has(w) || w.length < 3) continue;
+      const g = groups.get(w) ?? { count: 0, volume: 0 };
+      g.count++;
+      g.volume += k.searchVolume;
+      groups.set(w, g);
+    }
+  }
+  return {
+    seed,
+    total: kws.length,
+    totalVolume: kws.reduce((a, b) => a + b.searchVolume, 0),
+    groups: [...groups.entries()].map(([term, g]) => ({ term, ...g })).sort((a, b) => b.count - a.count).slice(0, 30),
+    keywords: kws,
+  };
+}
+
+export function mockKeywordDifficulty(keywords: string[], ctx: MockCtx): KeywordDifficultyReport {
+  return { keywords: keywords.map((k) => mockKeywordMetrics(k, ctx)) };
+}
+
+export function mockKeywordGap(domains: string[], ctx: MockCtx): KeywordGap {
+  const pools = domains.map((d) => mockRankedKeywords(d, ctx, 220));
+  const r = rng(`${domains.join("|")}|gap`);
+  // Make keyword sets overlap: share a common slice from the first domain.
+  const all = new Map<string, KeywordGapRow>();
+  pools.forEach((pool, di) => {
+    for (const k of pool) {
+      const row = all.get(k.keyword) ?? {
+        keyword: k.keyword, searchVolume: k.searchVolume, cpc: k.cpc, keywordDifficulty: k.keywordDifficulty, intent: k.intent,
+        positions: domains.map(() => null as number | null), category: "unique" as const,
+      };
+      row.positions[di] = k.position;
+      all.set(k.keyword, row);
+    }
+  });
+  const first = pools[0];
+  for (const k of first.slice(0, 120)) {
+    const row = all.get(k.keyword)!;
+    for (let di = 1; di < domains.length; di++) if (r.chance(0.55) && row.positions[di] == null) row.positions[di] = r.int(1, 100);
+  }
+  const rows = [...all.values()].map((row) => {
+    const [mine, ...others] = row.positions;
+    const ranked = others.filter((p): p is number => p != null);
+    let category: KeywordGapRow["category"];
+    if (mine != null && ranked.length === others.length) {
+      const best = Math.min(...ranked);
+      category = mine < best ? "strong" : mine > best + 10 ? "weak" : "shared";
+    } else if (mine == null && ranked.length === others.length) category = "missing";
+    else if (mine == null && ranked.length > 0) category = "untapped";
+    else category = "unique";
+    return { ...row, category };
+  });
+  return {
+    domains,
+    totals: domains.map((d, i) => ({ domain: d, keywords: pools[i].length })),
+    overlap: {
+      shared: rows.filter((r) => r.positions.every((p) => p != null)).length,
+      uniqueToFirst: rows.filter((r) => r.positions[0] != null && r.positions.slice(1).every((p) => p == null)).length,
+      uniqueToOthers: rows.filter((r) => r.positions[0] == null).length,
+    },
+    rows: rows.sort((a, b) => b.searchVolume - a.searchVolume),
+  };
+}
+
+export function mockSerpAnalysis(keyword: string, ctx: MockCtx, device: string): SerpAnalysis {
+  const results = mockSerp(keyword, ctx, device);
+  const features = new Map<string, number>();
+  results.forEach((x) => features.set(x.type, (features.get(x.type) ?? 0) + 1));
+  return {
+    keyword,
+    device,
+    checkedAt: new Date().toISOString(),
+    resultsCount: mockKeywordMetrics(keyword, ctx).resultsCount,
+    features: [...features.entries()].map(([type, count]) => ({ type, count })),
+    results,
+  };
+}

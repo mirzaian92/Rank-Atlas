@@ -1,0 +1,159 @@
+// RankAtlas data model.
+// Stores provider credentials (encrypted), API usage/cost logs, a response cache,
+// saved searches, and historical snapshots captured from real provider responses.
+// History shown in the UI must come from provider-documented historical endpoints
+// or from snapshots in this database — never fabricated.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Encrypted provider credentials (AES-256-GCM). Only one active row per provider.
+model ProviderCredential {
+  id                String   @id @default(cuid())
+  provider          String   @unique // "dataforseo"
+  login             String
+  passwordEncrypted String   // base64(iv | authTag | ciphertext)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  lastVerifiedAt    DateTime?
+  lastBalanceUsd    Decimal? @db.Decimal(12, 4)
+}
+
+/// Key/value application settings (spending limits, cache TTL overrides, etc).
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+/// One row per outbound provider request (or cache hit), for usage & cost tracking.
+model ApiRequestLog {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  provider      String   @default("dataforseo")
+  api           String   // labs | serp | backlinks | on_page | appendix
+  endpoint      String   // e.g. /v3/dataforseo_labs/google/domain_rank_overview/live
+  tool          String?  // e.g. domain-overview
+  cacheKey      String?
+  cacheHit      Boolean  @default(false)
+  httpStatus    Int?
+  statusCode    Int?     // DataForSEO status_code (20000 = OK)
+  statusMessage String?
+  costUsd       Decimal  @default(0) @db.Decimal(12, 6) // actual cost reported by provider
+  estimatedUsd  Decimal  @default(0) @db.Decimal(12, 6) // pre-flight estimate
+  durationMs    Int?
+  resultCount   Int?
+  error         String?
+
+  @@index([createdAt])
+  @@index([tool, createdAt])
+  @@index([endpoint, createdAt])
+}
+
+/// Cached normalized provider responses keyed by a hash of endpoint + payload.
+model ApiCache {
+  key        String   @id // sha256(endpoint + canonical payload)
+  endpoint   String
+  payload    Json
+  response   Json
+  costUsd    Decimal  @default(0) @db.Decimal(12, 6)
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  hits       Int      @default(0)
+
+  @@index([expiresAt])
+  @@index([endpoint])
+}
+
+/// A search the user starred from the universal header (domain, keyword, URL).
+model SavedSearch {
+  id         String   @id @default(cuid())
+  tool       String
+  query      String
+  queryType  String   // domain | keyword | url
+  locationCode Int
+  languageCode String
+  label      String?
+  createdAt  DateTime @default(now())
+  lastRunAt  DateTime?
+
+  @@unique([tool, query, locationCode, languageCode])
+}
+
+/// Point-in-time domain metrics captured from real provider responses.
+/// Used for Historical Domain Trends where provider history is unavailable.
+model DomainSnapshot {
+  id             String   @id @default(cuid())
+  domain         String
+  locationCode   Int
+  languageCode   String
+  capturedAt     DateTime @default(now())
+  source         String   // endpoint that produced the values
+  organicKeywords Int?
+  organicEtv     Float?   // estimated traffic value (ETV) — an estimate, not analytics data
+  paidKeywords   Int?
+  paidEtv        Float?
+  backlinks      BigInt?
+  referringDomains Int?
+  domainRank     Int?
+  raw            Json?
+
+  @@index([domain, locationCode, languageCode, capturedAt])
+}
+
+/// Position Tracking: a project tracks a set of keywords for one domain in one market.
+model TrackingProject {
+  id           String   @id @default(cuid())
+  name         String
+  domain       String
+  locationCode Int
+  languageCode String
+  device       String   @default("desktop")
+  createdAt    DateTime @default(now())
+  keywords     TrackedKeyword[]
+}
+
+model TrackedKeyword {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    TrackingProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  keyword    String
+  tags       String[]
+  createdAt  DateTime @default(now())
+  ranks      RankSnapshot[]
+
+  @@unique([projectId, keyword])
+}
+
+/// A single observed SERP position, captured from a real SERP API response.
+model RankSnapshot {
+  id         String   @id @default(cuid())
+  keywordId  String
+  keyword    TrackedKeyword @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+  checkedAt  DateTime @default(now())
+  position   Int?     // null = not in top N
+  url        String?
+  serpFeatures String[]
+  taskId     String?
+
+  @@index([keywordId, checkedAt])
+}
+
+/// Site Audit crawl tracking (DataForSEO OnPage task ids).
+model SiteAuditCrawl {
+  id          String   @id @default(cuid())
+  target      String
+  taskId      String?  @unique
+  status      String   @default("queued") // queued | crawling | finished | failed
+  maxPages    Int      @default(100)
+  createdAt   DateTime @default(now())
+  finishedAt  DateTime?
+  summary     Json?
+  costUsd     Decimal  @default(0) @db.Decimal(12, 6)
+}
