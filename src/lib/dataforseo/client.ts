@@ -62,7 +62,8 @@ async function dfsCallInner<R>(key: EndpointKey, payload: Record<string, unknown
   if (ttl > 0 && cacheSettings.enabled && !opts.bypassCache) {
     const hit = await cacheGet<R[]>(ck);
     if (hit) {
-      await logUsage({ api: ep.api, endpoint: path, tool: opts.tool, cacheKey: ck, cacheHit: true, costUsd: 0 });
+      // estimatedUsd on a cache hit = what the original request cost, i.e. money saved by the cache.
+      await logUsage({ api: ep.api, endpoint: path, tool: opts.tool, cacheKey: ck, cacheHit: true, costUsd: 0, estimatedUsd: hit.costUsd });
       return { result: hit.value, costUsd: 0, cached: true, endpoint: path, taskId: null };
     }
   }

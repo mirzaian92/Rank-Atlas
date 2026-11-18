@@ -4,7 +4,7 @@ import type { SerpAnalysis } from "@/lib/reports/types";
 import { ReportView } from "@/components/report/report-view";
 import { MetricCard } from "@/components/report/metric-card";
 import { Section } from "@/components/report/section";
-import { serpColumns } from "@/components/report/serp-columns";
+import { serpColumnsFor } from "@/components/report/serp-columns";
 import { BarList } from "@/components/charts/bar-list";
 import { DataTable } from "@/components/data/data-table";
 import { Card } from "@/components/ui/card";
@@ -44,7 +44,7 @@ function Inner() {
                 <p className="mt-4 text-xs text-ink-3">Checked {new Date(d.checkedAt).toLocaleString()} · {d.device}</p>
               </Section>
               <Card className="min-w-0 pt-4">
-                <DataTable data={d.results} columns={serpColumns} searchText={(r) => `${r.title} ${r.url}`} exportName={`serp_${d.keyword}_${d.device}`} pageSize={50} countLabel={(n) => `${n} results`} />
+                <DataTable data={d.results} columns={serpColumnsFor(d.results)} searchText={(r) => `${r.title} ${r.url}`} exportName={`serp_${d.keyword}_${d.device}`} pageSize={50} countLabel={(n) => `${n} results`} />
               </Card>
             </div>
           </div>

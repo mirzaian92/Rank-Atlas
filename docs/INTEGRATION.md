@@ -6,7 +6,7 @@ Integrate **one tool at a time**, in this order. A tool goes live only after eve
 |---|---|---|
 | 1 | Domain Overview | **Ready** — live code written and tested against a local fake server; not yet run against the real API |
 | 2 | Organic Research | **Ready** — server-side paging, sorting and filters; tested against the fake server; not yet run against the real API |
-| 3 | Keyword Overview (+ Keyword Difficulty) | Mock |
+| 3 | Keyword Overview (+ Keyword Difficulty) | **Ready** — tested against the fake server; not yet run against the real API |
 | 4 | Keyword Magic Tool | Mock |
 | 5 | Organic Competitors | Mock |
 | 6 | Keyword Gap | Mock |
@@ -193,11 +193,70 @@ Results are cached for 3 days (keywords) and 7 days (pages), keyed by the full q
 
 ---
 
+## Integration #3 — Keyword Overview + Keyword Difficulty
+
+### Files
+
+| File | Role |
+|---|---|
+| `src/lib/dataforseo/normalize/keywords.ts` | Keyword item → `KeywordMetrics`; SERP → `SerpResult[]` |
+| `src/lib/dataforseo/services/keywords.ts` | `fetchKeywordOverview`, `fetchKeywordDifficulty` |
+| `src/components/report/serp-columns.tsx` | `serpColumnsFor` hides SERP metric columns that have no data |
+| `tests/keywords.test.ts` | Normalizer tests |
+
+### Keyword Overview — 4 parallel requests
+
+Only #1 is required.
+
+| # | Endpoint | Payload | Used for |
+|---|---|---|---|
+| 1 | `dataforseo_labs/google/keyword_overview/live` | `keywords: [kw]`, `include_serp_info: true` | Volume, 12-month trend, KD, CPC, competition, intent, SERP features, results count |
+| 2 | `dataforseo_labs/google/keyword_suggestions/live` | `keyword`, `limit: 10`, `order_by: ["keyword_info.search_volume,desc"]` | Keyword variations (phrase-match) |
+| 3 | `dataforseo_labs/google/keyword_suggestions/live` | Same as #2, plus `filters: [["keyword","regex","^(how|what|why|…) "]]` | Questions |
+| 4 | `serp/google/organic/live/advanced` | `keyword`, `device: "desktop"`, `depth: 10` | SERP table |
+
+**Cost:** ≈ $0.035 per uncached keyword. Cached 14 days for the Labs calls and 12 h for the SERP.
+
+The live SERP doesn't include Domain Rank, backlinks or traffic per result. Those columns hide automatically, and a note explains why. Adding them later would mean one `backlinks/bulk_ranks` call per SERP (≈ $0.02).
+
+### Keyword Difficulty
+
+One `keyword_overview/live` call for the whole list (≤ 100 keywords): ≈ $0.01 + $0.0001 per keyword. Keywords the provider has no data for are listed in a note; they never get placeholder values.
+
+### VERIFY
+
+- `regex` operator on `keyword` in `keyword_suggestions` filters. Fallback: OR-group of `ilike "how %"` etc.
+- `keyword_overview` item shape: `keyword_info.monthly_searches`, `keyword_properties.keyword_difficulty`, `serp_info.serp_item_types`, `serp_info.se_results_count`, `search_intent_info.main_intent`.
+- Max keywords per `keyword_overview` task (docs: 700).
+- SERP `items[].rank_absolute`, `domain`, `title`, `url`, `description`.
+
+### Go-live checklist
+
+- [ ] Sandbox: page renders; variations and questions return rows.
+- [ ] One real keyword: compare volume / KD / CPC and the monthly trend with the raw JSON.
+- [ ] Add `keyword-overview,keyword-difficulty` to `DATAFORSEO_LIVE_TOOLS`.
+
+---
+
+## Usage meter
+
+The header shows today's DataForSEO spend, with a bar against the daily limit. It turns amber at 80% of a limit and red at 100%, with an icon and label as well as colour. Click it to see:
+- today and this month against your limits
+- paid requests and cache hits
+- money saved by the cache
+- your account balance, refreshed with the free `appendix/user_data` endpoint
+- the latest requests
+
+Data comes from `GET /api/usage/meter`, which sums `ApiRequestLog.costUsd`: the cost DataForSEO reports on each response. Cache hits are logged with the original request's cost in `estimatedUsd`, which is where "saved by cache" comes from.
+
+The meter refreshes every 20 s and immediately after any report that touched the provider. A short "+$x" chip shows each increase. "Today" is a UTC day.
+
+---
+
 ## Later tools — endpoint map
 
 | Tool | Endpoints | Notes |
 |---|---|---|
-| Keyword Overview / Difficulty | `labs/google/keyword_overview/live`, `labs/google/bulk_keyword_difficulty/live`, `serp/google/organic/live/advanced` | Up to 700 keywords per KD task. **VERIFY** the limit. |
 | Keyword Magic Tool | `labs/google/keyword_suggestions/live` (phrase), `related_keywords/live` (related), `keyword_ideas/live` (broad) | Map the UI modes to these endpoints; build questions with a `filters` regex or from `keyword_suggestions`. |
 | Organic Competitors | `labs/google/competitors_domain/live` | |
 | Keyword Gap | `labs/google/domain_intersection/live` (`target1`, `target2`, `intersections: true/false`) | Pairwise only; for 3–5 domains, combine pairwise results or use `ranked_keywords` per domain. |

@@ -68,10 +68,10 @@ export const TOOLS: ToolDef[] = [
     id: "keyword-overview", label: "Keyword Overview", section: "seo", href: "/seo/keyword-overview",
     icon: KeyRound, query: "keyword", placeholder: "Enter keyword",
     description: "Search volume, trend, CPC, difficulty, intent and SERP for a keyword.",
-    order: 3, integration: "mock",
+    order: 3, integration: "ready",
     endpoints: [
       "POST /v3/dataforseo_labs/google/keyword_overview/live",
-      "POST /v3/dataforseo_labs/google/bulk_keyword_difficulty/live",
+      "POST /v3/dataforseo_labs/google/keyword_suggestions/live",
       "POST /v3/serp/google/organic/live/advanced",
     ],
   },
@@ -90,8 +90,8 @@ export const TOOLS: ToolDef[] = [
     id: "keyword-difficulty", label: "Keyword Difficulty", section: "seo", href: "/seo/keyword-difficulty",
     icon: Gauge, query: "keywords", placeholder: "Enter up to 100 keywords, comma separated",
     description: "Bulk keyword difficulty scores (0–100) for a list of keywords.",
-    order: 3, integration: "mock",
-    endpoints: ["POST /v3/dataforseo_labs/google/bulk_keyword_difficulty/live", "POST /v3/dataforseo_labs/google/keyword_overview/live"],
+    order: 3, integration: "ready",
+    endpoints: ["POST /v3/dataforseo_labs/google/keyword_overview/live"],
   },
   {
     id: "keyword-gap", label: "Keyword Gap", section: "seo", href: "/seo/keyword-gap",

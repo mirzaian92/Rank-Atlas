@@ -7,7 +7,7 @@ import { ReportView } from "@/components/report/report-view";
 import { MetricCard } from "@/components/report/metric-card";
 import { Section } from "@/components/report/section";
 import { keywordMetricColumns } from "@/components/report/columns";
-import { serpColumns } from "@/components/report/serp-columns";
+import { serpColumnsFor } from "@/components/report/serp-columns";
 import { VBarChart } from "@/components/charts/bar-chart";
 import { DataTable } from "@/components/data/data-table";
 import { IntentBadge, kdBand, SerpFeatureList } from "@/components/data/cells";
@@ -57,7 +57,7 @@ function Inner() {
               </Section>
             </div>
             <Section flush title="SERP analysis" mock={mock} description="Top Google results" actions={<Button asChild variant="outline" size="sm"><Link href={`/site/serp-analysis?q=${encodeURIComponent(k.keyword)}&db=${market.id}`}>Full SERP <ArrowRight /></Link></Button>}>
-              <DataTable compact data={d.serp} columns={serpColumns} />
+              <DataTable compact data={d.serp} columns={serpColumnsFor(d.serp)} emptyTitle="SERP unavailable" />
             </Section>
           </div>
         );

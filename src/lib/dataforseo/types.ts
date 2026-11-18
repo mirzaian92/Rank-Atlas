@@ -109,3 +109,41 @@ export type DfsUserData = {
   rates?: unknown;
   money: { total: number; balance: number; limits?: unknown; statistics?: unknown };
 };
+
+/** Keyword item shape shared by keyword_overview, keyword_suggestions, related/ideas (Labs). */
+export type DfsKeywordItem = {
+  se_type?: string;
+  keyword: string;
+  location_code?: number;
+  language_code?: string;
+  keyword_info?: {
+    search_volume: number | null;
+    cpc: number | null;
+    competition: number | null;
+    competition_level?: string | null;
+    monthly_searches?: { year: number; month: number; search_volume: number | null }[] | null;
+  } | null;
+  keyword_properties?: { keyword_difficulty: number | null } | null;
+  serp_info?: { serp_item_types?: string[] | null; se_results_count?: number | null; last_updated_time?: string | null } | null;
+  search_intent_info?: { main_intent: string | null } | null;
+};
+
+/** Google Organic SERP (live/advanced) result. */
+export type DfsSerpItem = {
+  type: string;
+  rank_group?: number;
+  rank_absolute?: number;
+  domain?: string | null;
+  title?: string | null;
+  url?: string | null;
+  description?: string | null;
+  items?: { title?: string | null }[] | null;
+};
+export type DfsSerpResult = {
+  keyword: string;
+  check_url?: string;
+  datetime?: string;
+  se_results_count?: number | null;
+  item_types?: string[] | null;
+  items: DfsSerpItem[] | null;
+};

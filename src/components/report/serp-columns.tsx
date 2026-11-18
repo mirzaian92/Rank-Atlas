@@ -22,3 +22,12 @@ export const serpColumns: ColumnDef<SerpResult>[] = [
   { accessorKey: "backlinks", header: "Backlinks", cell: ({ getValue }) => fmtCompact(getValue<number | null>()), meta: { align: "right" } },
   { accessorKey: "etv", header: "Traffic (est.)", cell: ({ getValue }) => fmtCompact(getValue<number | null>()), meta: { align: "right" } },
 ];
+
+/** Drop metric columns that have no values at all (e.g. live SERP data has no per-result Domain Rank). */
+export function serpColumnsFor(rows: SerpResult[]): ColumnDef<SerpResult>[] {
+  const empty = (k: keyof SerpResult) => rows.length > 0 && rows.every((r) => r[k] == null);
+  return serpColumns.filter((c) => {
+    const key = (c as { accessorKey?: keyof SerpResult }).accessorKey;
+    return !(key && (key === "domainRank" || key === "backlinks" || key === "etv") && empty(key));
+  });
+}

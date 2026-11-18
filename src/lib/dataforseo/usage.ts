@@ -73,3 +73,33 @@ export async function usageSummary() {
     })),
   };
 }
+
+/** Compact snapshot for the header usage meter (polled every ~20 s). */
+export async function usageMeter() {
+  if (!(await dbAvailable())) return null;
+  const day = startOfDayUtc();
+  const month = startOfMonthUtc();
+  const [todayAgg, monthAgg, todayHits, recent, lastPaid] = await Promise.all([
+    // Free endpoints (balance check, task polling) cost $0 and are not counted as paid requests.
+    prisma.apiRequestLog.aggregate({ where: { createdAt: { gte: day }, cacheHit: false, costUsd: { gt: 0 } }, _sum: { costUsd: true }, _count: { _all: true } }),
+    prisma.apiRequestLog.aggregate({ where: { createdAt: { gte: month }, cacheHit: false, costUsd: { gt: 0 } }, _sum: { costUsd: true }, _count: { _all: true } }),
+    prisma.apiRequestLog.aggregate({ where: { createdAt: { gte: day }, cacheHit: true }, _sum: { estimatedUsd: true }, _count: { _all: true } }),
+    prisma.apiRequestLog.findMany({ where: { createdAt: { gte: day } }, orderBy: { createdAt: "desc" }, take: 6 }),
+    prisma.apiRequestLog.findFirst({ where: { cacheHit: false, costUsd: { gt: 0 } }, orderBy: { createdAt: "desc" } }),
+  ]);
+  return {
+    todayUsd: Number(todayAgg._sum.costUsd ?? 0),
+    monthUsd: Number(monthAgg._sum.costUsd ?? 0),
+    paidRequestsToday: todayAgg._count._all,
+    paidRequestsMonth: monthAgg._count._all,
+    cacheHitsToday: todayHits._count._all,
+    savedTodayUsd: Number(todayHits._sum.estimatedUsd ?? 0),
+    lastPaidAt: lastPaid?.createdAt.toISOString() ?? null,
+    recent: recent.map((r) => ({
+      id: r.id, createdAt: r.createdAt.toISOString(), tool: r.tool, endpoint: r.endpoint, cacheHit: r.cacheHit,
+      costUsd: Number(r.costUsd), error: r.error,
+    })),
+    /** UTC boundaries so the UI can say when "today" resets. */
+    dayStartsAt: day.toISOString(),
+  };
+}

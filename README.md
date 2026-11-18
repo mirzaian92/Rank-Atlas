@@ -4,7 +4,7 @@ A Semrush-style SEO research platform (original branding) built on **DataForSEO 
 Next.js App Router · TypeScript · Tailwind CSS v4 · shadcn/ui-style components (Radix) · Recharts · TanStack Table · TanStack Query · PostgreSQL · Prisma.
 
 > **Status:** All 14 tools have full UI with **labelled mock data**. The DataForSEO layer is built.
-> Domain Overview (#1) and Organic Research (#2) have live implementations that are **switched off**
+> Domain Overview (#1), Organic Research (#2) and Keyword Overview / Keyword Difficulty (#3) have live implementations that are **switched off**
 > by default. No paid requests are made unless you enable them.
 
 ## Local setup
@@ -56,7 +56,7 @@ searches, usage logs, the cache, spending limits and DB-stored credentials are d
 ## What's in the UI
 
 - Dark, collapsible left navigation: **SEO Research** (Domain Overview, Organic Research, Organic Competitors, Keyword Overview, Keyword Magic Tool, Keyword Difficulty, Keyword Gap, Position Tracking), **Link Building** (Backlink Analytics, Backlink Gap, Backlink Audit), **Website Analysis** (Site Audit, Historical Domain Trends, SERP Analysis), plus Settings. On mobile it opens as a drawer.
-- A header with a universal domain/keyword search (detects the input type; it stays on the current tool or routes to Domain or Keyword Overview), a country + language market selector (DataForSEO `location_code` / `language_code`), and a data-mode indicator (Mock / Live / Sandbox).
+- A header with a universal domain/keyword search (detects the input type; it stays on the current tool or routes to Domain or Keyword Overview), a country + language market selector (DataForSEO `location_code` / `language_code`), and a **live usage meter** (today's DataForSEO spend vs. your daily limit; click for month total, cache savings, balance and latest requests).
 - All report state lives in the URL (`?q=&db=&lang=&range=&tab=…`), so every view can be shared and bookmarked.
 - Reusable building blocks:
   - `ReportView` page shell: loading, error, empty and landing states, plus the data-source badge.

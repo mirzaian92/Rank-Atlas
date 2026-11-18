@@ -28,10 +28,33 @@ const RESULTS = {
     const off = task.offset ?? 0, lim = task.limit ?? 100;
     return labs(all.slice(off, off + lim), 40);
   },
+  "/v3/dataforseo_labs/google/keyword_overview/live": (task) =>
+    labs((task.keywords ?? []).filter((k) => !k.includes("nodata")).map((k, i) => fakeKeyword(k, i))),
+  "/v3/dataforseo_labs/google/keyword_suggestions/live": (task) => {
+    const q = Boolean(task.filters);
+    const words = q ? ["how to use", "what is", "why use", "is"] : ["best", "free", "cheap", "top", "online"];
+    return labs(words.map((w, i) => fakeKeyword(q ? `${w} ${task.keyword}` : `${w} ${task.keyword}`, i + 1)), 40);
+  },
+  "/v3/serp/google/organic/live/advanced": (task) => [{
+    keyword: task.keyword, se_results_count: 1830000, item_types: ["organic", "people_also_ask"],
+    items: [
+      { type: "organic", rank_group: 1, rank_absolute: 1, domain: "alpha.com", title: `${task.keyword} — Alpha`, url: "https://alpha.com/x", description: "desc" },
+      { type: "people_also_ask", rank_group: 1, rank_absolute: 2, items: [{ title: "q1" }] },
+      { type: "organic", rank_group: 2, rank_absolute: 3, domain: "beta.io", title: `${task.keyword} guide`, url: "https://beta.io/guide", description: "desc" },
+    ],
+  }],
   "/v3/backlinks/summary/live": () => [{ target: "fake.com", rank: 48, backlinks: 120000, backlinks_spam_score: 4, broken_backlinks: 30, referring_domains: 2100, referring_domains_nofollow: 300, referring_main_domains: 1900, referring_ips: 1700, referring_subnets: 1400, referring_links_tld: { com: 1200, org: 300 }, referring_links_types: { anchor: 110000 }, referring_links_attributes: { nofollow: 20000 } }],
   "/v3/backlinks/anchors/live": () => [{ total_count: 1, items: [{ anchor: "fake", backlinks: 5000, referring_domains: 400 }] }],
   "/v3/appendix/user_data": () => [{ login: "fake@example.com", timezone: "UTC", money: { total: 50, balance: 42.5 } }],
 };
+
+const fakeKeyword = (keyword, i) => ({
+  se_type: "google", keyword, location_code: 2840, language_code: "en",
+  keyword_info: { search_volume: 9000 - i * 700, cpc: 3.2 + i, competition: 0.5, monthly_searches: Array.from({ length: 12 }, (_, m) => ({ year: 2026, month: 12 - m, search_volume: 8000 + m * 150 })) },
+  keyword_properties: { keyword_difficulty: 30 + i * 9 },
+  serp_info: { serp_item_types: ["organic", "people_also_ask"], se_results_count: 1830000 },
+  search_intent_info: { main_intent: ["commercial", "informational", "transactional", "navigational"][i % 4] },
+});
 
 let calls = 0;
 http.createServer((req, res) => {
