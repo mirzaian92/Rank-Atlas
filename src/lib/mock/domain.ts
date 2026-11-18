@@ -3,7 +3,7 @@
  */
 import type {
   CompetitorRow, DomainHistoryPoint, DomainOverview, HistoricalTrends, OrganicCompetitors,
-  OrganicResearch, PositionBucket, RankedKeyword, SearchIntent,
+  OrganicPage, OrganicResearchSummary, PagedRows, PositionBucket, RankedKeyword, SearchIntent,
 } from "@/lib/reports/types";
 import { MARKETS } from "@/lib/config/markets";
 import { lastMonths, rng, walk, type Rng } from "./rng";
@@ -183,10 +183,24 @@ export function mockDomainOverview(domain: string, ctx: MockCtx): DomainOverview
   };
 }
 
-export function mockOrganicResearch(domain: string, ctx: MockCtx): OrganicResearch {
-  const history = mockHistory(domain, ctx, 24);
-  const cur = history[history.length - 1];
-  const keywords = mockRankedKeywords(domain, ctx, 300);
+export function mockOrganicSummary(domain: string, ctx: MockCtx): OrganicResearchSummary {
+  const o = mockDomainOverview(domain, ctx);
+  return {
+    domain,
+    summary: { organicKeywords: o.summary.organicKeywords, organicEtv: o.summary.organicEtv, organicTrafficCost: o.summary.organicTrafficCost, paidKeywords: o.summary.paidKeywords },
+    positionDistribution: o.positionDistribution,
+    movement: o.movement,
+    history: o.history,
+  };
+}
+
+/** Mock keyword universe for paging (1,000 rows; the "total" reported is the filtered count of these). */
+export function mockOrganicKeywordPool(domain: string, ctx: MockCtx): RankedKeyword[] {
+  return mockRankedKeywords(domain, ctx, 1000);
+}
+
+export function mockOrganicPages(domain: string, ctx: MockCtx, page: number, size: number): PagedRows<OrganicPage> {
+  const keywords = mockOrganicKeywordPool(domain, ctx);
   const byUrl = new Map<string, { keywords: number; etv: number }>();
   for (const k of keywords) {
     const v = byUrl.get(k.url) ?? { keywords: 0, etv: 0 };
@@ -195,17 +209,10 @@ export function mockOrganicResearch(domain: string, ctx: MockCtx): OrganicResear
     byUrl.set(k.url, v);
   }
   const totalEtv = keywords.reduce((a, b) => a + b.etv, 0) || 1;
-  return {
-    domain,
-    total: cur.organicKeywords,
-    summary: { organicKeywords: cur.organicKeywords, organicEtv: cur.organicEtv, organicTrafficCost: Math.round(cur.organicEtv * 1.4) },
-    positionDistribution: distribution(cur),
-    history,
-    keywords,
-    pages: [...byUrl.entries()]
-      .map(([url, v]) => ({ url, keywords: v.keywords, etv: Math.round(v.etv), trafficShare: Math.round((v.etv / totalEtv) * 10000) / 100 }))
-      .sort((a, b) => b.etv - a.etv),
-  };
+  const all = [...byUrl.entries()]
+    .map(([url, v]) => ({ url, keywords: v.keywords, etv: Math.round(v.etv), trafficShare: Math.round((v.etv / totalEtv) * 10000) / 100 }))
+    .sort((a, b) => b.etv - a.etv);
+  return { domain, total: all.length, page, size, rows: all.slice((page - 1) * size, page * size) };
 }
 
 export function mockOrganicCompetitors(domain: string, ctx: MockCtx): OrganicCompetitors {

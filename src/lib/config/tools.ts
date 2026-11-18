@@ -49,8 +49,13 @@ export const TOOLS: ToolDef[] = [
     id: "organic-research", label: "Organic Research", section: "seo", href: "/seo/organic-research",
     icon: Search, query: "domain", placeholder: "Enter domain or URL",
     description: "Keywords a domain ranks for in Google's organic results, with positions, volumes and estimated traffic.",
-    order: 2, integration: "mock",
-    endpoints: ["POST /v3/dataforseo_labs/google/ranked_keywords/live", "POST /v3/dataforseo_labs/google/relevant_pages/live"],
+    order: 2, integration: "ready",
+    endpoints: [
+      "POST /v3/dataforseo_labs/google/ranked_keywords/live",
+      "POST /v3/dataforseo_labs/google/relevant_pages/live",
+      "POST /v3/dataforseo_labs/google/domain_rank_overview/live",
+      "POST /v3/dataforseo_labs/google/historical_rank_overview/live",
+    ],
   },
   {
     id: "organic-competitors", label: "Organic Competitors", section: "seo", href: "/seo/organic-competitors",

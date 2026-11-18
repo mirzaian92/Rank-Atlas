@@ -3,9 +3,9 @@
 A Semrush-style SEO research platform (original branding) built on **DataForSEO API v3**.
 Next.js App Router · TypeScript · Tailwind CSS v4 · shadcn/ui-style components (Radix) · Recharts · TanStack Table · TanStack Query · PostgreSQL · Prisma.
 
-> **Status: Phase 1 complete.** All 14 tools have full UI with **labelled mock data**.
-> The DataForSEO integration layer is built, and Domain Overview (integration #1) has a live
-> implementation that is **switched off** by default. No paid requests are made unless you enable them.
+> **Status:** All 14 tools have full UI with **labelled mock data**. The DataForSEO layer is built.
+> Domain Overview (#1) and Organic Research (#2) have live implementations that are **switched off**
+> by default. No paid requests are made unless you enable them.
 
 ## Local setup
 
@@ -49,6 +49,7 @@ searches, usage logs, the cache, spending limits and DB-stored credentials are d
 | `npm run dev` | Development server |
 | `npm run build` / `npm start` | Production build / serve |
 | `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | Unit tests (Vitest) for filter translation, query handling and normalizers |
 | `npm run db:migrate` / `db:deploy` / `db:studio` | Prisma |
 | `node scripts/fake-dataforseo.mjs` | Local fake DataForSEO server (see "Testing without cost") |
 
@@ -127,6 +128,10 @@ DATAFORSEO_BASE_URL_OVERRIDE=http://localhost:4010 DATAFORSEO_LIVE_ENABLED=true 
 Save any login and password in Settings, then open `/seo/domain-overview?q=fake.com`. The override is ignored when `NODE_ENV=production`.
 
 DataForSEO also offers a free sandbox: set `DATAFORSEO_USE_SANDBOX=true` to hit `sandbox.dataforseo.com`.
+
+### Known dev-server quirk
+
+Next.js 16 `next dev` occasionally gets into a full-reload loop after many file edits ("[Fast Refresh] rebuilding" on every load). Restarting `npm run dev` fixes it. Production builds are not affected.
 
 ## Security notes
 

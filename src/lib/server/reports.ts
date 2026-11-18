@@ -2,7 +2,9 @@ import "server-only";
 import { z } from "zod";
 import type { ToolId } from "@/lib/config/tools";
 import { domainListSchema, domainSchema, keywordListSchema, keywordSchema, marketSchema } from "@/lib/validation/params";
-import { mockDomainOverview, mockHistoricalTrends, mockOrganicCompetitors, mockOrganicResearch } from "@/lib/mock/domain";
+import { mockDomainOverview, mockHistoricalTrends, mockOrganicCompetitors, mockOrganicKeywordPool, mockOrganicPages, mockOrganicSummary } from "@/lib/mock/domain";
+import { applyRankedQuery, rankedQuerySchema } from "@/lib/reports/ranked-query";
+import { fetchOrganicKeywords, fetchOrganicPages, fetchOrganicSummary } from "@/lib/dataforseo/services/organic-research";
 import { mockKeywordDifficulty, mockKeywordGap, mockKeywordMagic, mockKeywordOverview, mockSerpAnalysis } from "@/lib/mock/keywords";
 import { mockBacklinkAnalytics, mockBacklinkAudit, mockBacklinkGap, mockPositionTracking, mockSiteAudit } from "@/lib/mock/links-site";
 import { fetchDomainOverview } from "@/lib/dataforseo/services/domain-overview";
@@ -32,7 +34,24 @@ export const REPORTS: Record<ToolId, Handler<unknown>> = {
     live: (p) => fetchDomainOverview({ domain: p.q, locationCode: p.locationCode, languageCode: p.languageCode, months: p.months }),
     notes: [ETV_NOTE],
   }),
-  "organic-research": h({ schema: q(domainSchema), mock: (p) => mockOrganicResearch(p.q, p), notes: [ETV_NOTE] }),
+  "organic-research": h({
+    schema: q(domainSchema).extend({ view: z.enum(["summary", "keywords", "pages"]).default("summary") }).and(rankedQuerySchema),
+    mock: (p) => {
+      if (p.view === "pages") return mockOrganicPages(p.q, p, p.page, p.size);
+      if (p.view === "keywords") {
+        const { rows, total } = applyRankedQuery(mockOrganicKeywordPool(p.q, p), p);
+        return { domain: p.q, total, page: p.page, size: p.size, rows };
+      }
+      return mockOrganicSummary(p.q, p);
+    },
+    live: (p) => {
+      const t = { domain: p.q, locationCode: p.locationCode, languageCode: p.languageCode };
+      if (p.view === "pages") return fetchOrganicPages(t, p.page, p.size);
+      if (p.view === "keywords") return fetchOrganicKeywords(t, p);
+      return fetchOrganicSummary(t);
+    },
+    notes: [ETV_NOTE],
+  }),
   "organic-competitors": h({ schema: q(domainSchema), mock: (p) => mockOrganicCompetitors(p.q, p), notes: [ETV_NOTE] }),
   "keyword-overview": h({ schema: q(keywordSchema), mock: (p) => mockKeywordOverview(p.q, p) }),
   "keyword-magic-tool": h({

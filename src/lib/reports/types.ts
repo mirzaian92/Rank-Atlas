@@ -83,15 +83,19 @@ export type DomainOverview = {
   countries: { locationCode: number; country: string; organicEtv: number; organicKeywords: number }[] | null;
 };
 
-export type OrganicResearch = {
+/** Organic Research is served as three views so paging the tables never refetches the charts. */
+export type OrganicResearchSummary = {
   domain: string;
-  total: number;
-  summary: { organicKeywords: number; organicEtv: number; organicTrafficCost: number };
+  summary: { organicKeywords: number; organicEtv: number; organicTrafficCost: number; paidKeywords: number };
   positionDistribution: { bucket: PositionBucket; count: number }[];
+  movement: { isNew: number; isUp: number; isDown: number; isLost: number };
   history: DomainHistoryPoint[];
-  keywords: RankedKeyword[];
-  pages: { url: string; keywords: number; etv: number; trafficShare: number }[];
 };
+
+export type OrganicPage = { url: string; keywords: number; etv: number; trafficShare: number };
+
+/** A server-paged slice of a larger result set. `total` is the filtered total reported by the provider. */
+export type PagedRows<T> = { domain: string; total: number; page: number; size: number; rows: T[] };
 
 export type OrganicCompetitors = {
   domain: string;

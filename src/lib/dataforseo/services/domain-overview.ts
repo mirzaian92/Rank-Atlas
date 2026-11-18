@@ -8,6 +8,7 @@ import type {
   DfsLabsItemsResult, DfsRankedKeywordItem, DfsRelevantPageItem,
 } from "../types";
 import { normalizeDomainOverview } from "../normalize/domain-overview";
+import { historyPayload, labsBase, rankOverviewPayload } from "./labs-common";
 
 export type DomainOverviewInput = { domain: string; locationCode: number; languageCode: string; months: number };
 
@@ -17,14 +18,12 @@ export type DomainOverviewInput = { domain: string; locationCode: number; langua
  * empty sections with a note. Estimated uncached cost ≈ $0.10 (see endpoint estimates).
  */
 export async function fetchDomainOverview(input: DomainOverviewInput) {
-  const base = { target: input.domain, location_code: input.locationCode, language_code: input.languageCode };
-  const from = new Date();
-  from.setUTCMonth(from.getUTCMonth() - (input.months - 1), 1);
+  const base = labsBase(input);
   const tool = "domain-overview" as const;
 
   const [overview, history, ranked, competitors, pages, backlinks, anchors] = await Promise.allSettled([
-    dfsCall<DfsLabsItemsResult<DfsDomainRankOverviewItem>>("domainRankOverview", { ...base, limit: 1 }, { tool }),
-    dfsCall<DfsLabsItemsResult<DfsHistoricalRankItem>>("historicalRankOverview", { ...base, date_from: from.toISOString().slice(0, 10) }, { tool }),
+    dfsCall<DfsLabsItemsResult<DfsDomainRankOverviewItem>>("domainRankOverview", rankOverviewPayload(input), { tool }),
+    dfsCall<DfsLabsItemsResult<DfsHistoricalRankItem>>("historicalRankOverview", historyPayload(input, input.months), { tool }),
     dfsCall<DfsLabsItemsResult<DfsRankedKeywordItem>>("rankedKeywords", {
       ...base, limit: 100, item_types: ["organic"], order_by: ["ranked_serp_element.serp_item.etv,desc"],
     }, { tool }),

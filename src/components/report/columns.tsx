@@ -67,8 +67,8 @@ export function keywordMetricFilters(): FilterDef<KeywordMetrics>[] {
 }
 
 /** Columns for ranked-keyword tables (Organic Research). */
-export function rankedKeywordColumns(db: string): ColumnDef<RankedKeyword>[] {
-  return [
+export function rankedKeywordColumns(db: string, opts: { isSortable?: (columnId: string) => boolean } = {}): ColumnDef<RankedKeyword>[] {
+  const cols: ColumnDef<RankedKeyword>[] = [
     { accessorKey: "keyword", header: "Keyword", cell: ({ getValue }) => <Link className="font-medium text-brand hover:underline" href={keywordLink(getValue<string>(), db)}>{getValue<string>()}</Link> },
     { accessorKey: "intent", header: "Intent", cell: ({ row }) => <IntentBadge intent={row.original.intent} />, meta: { align: "center" }, enableSorting: false },
     { accessorKey: "position", header: "Position", cell: ({ row }) => <PositionCell position={row.original.position} previous={row.original.previousPosition} isNew={row.original.isNew} />, meta: { align: "right" } },
@@ -82,6 +82,12 @@ export function rankedKeywordColumns(db: string): ColumnDef<RankedKeyword>[] {
     { accessorKey: "url", header: "URL", cell: ({ getValue }) => <UrlCell url={getValue<string>()} max={36} /> },
     { accessorKey: "lastUpdated", header: "Updated", cell: ({ getValue }) => { const v = getValue<string | null>(); return v ? new Date(v).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"; }, meta: { align: "right" } },
   ];
+  // In remote mode only columns the server can order by are sortable.
+  if (!opts.isSortable) return cols;
+  return cols.map((c) => {
+    const id = (c as { accessorKey?: string }).accessorKey ?? c.id ?? "";
+    return opts.isSortable!(id) ? c : { ...c, enableSorting: false };
+  });
 }
 
 export function rankedKeywordFilters(): FilterDef<RankedKeyword>[] {
@@ -91,6 +97,7 @@ export function rankedKeywordFilters(): FilterDef<RankedKeyword>[] {
     { id: "volume", label: "Volume", type: "range", accessor: (r) => r.searchVolume, presets: VOLUME_PRESETS },
     { id: "kd", label: "KD %", type: "range", accessor: (r) => r.keywordDifficulty, presets: KD_PRESETS },
     { id: "intent", label: "Intent", type: "multi", accessor: (r) => r.intent, options: INTENT_OPTIONS },
+    { id: "cpc", label: "CPC", type: "range", accessor: (r) => r.cpc },
     {
       id: "serp", label: "SERP features", type: "multi", accessor: (r) => r.serpFeatures,
       options: ["featured_snippet", "people_also_ask", "images", "video", "local_pack", "top_stories", "knowledge_graph", "sitelinks", "shopping"].map((v) => ({ value: v, label: v.replace(/_/g, " ") })),

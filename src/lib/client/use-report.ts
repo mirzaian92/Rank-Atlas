@@ -1,5 +1,5 @@
 "use client";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { ToolId } from "@/lib/config/tools";
 import type { ReportErrorBody, ReportErrorCode, ReportResponse } from "@/lib/reports/envelope";
 
@@ -27,11 +27,13 @@ export async function fetchReport<T>(tool: ToolId, params: Record<string, string
 }
 
 /** Fetch a report through /api/reports/:tool. Disabled until `enabled` (usually: a query is present). */
-export function useReport<T>(tool: ToolId, params: Record<string, string | undefined>, enabled = true) {
+export function useReport<T>(tool: ToolId, params: Record<string, string | undefined>, enabled = true, opts: { keepPrevious?: boolean } = {}) {
   return useQuery<ReportResponse<T>, ClientReportError>({
     queryKey: ["report", tool, params],
     queryFn: () => fetchReport<T>(tool, params),
     enabled,
+    // Paged tables keep showing the current page while the next one loads.
+    placeholderData: opts.keepPrevious ? keepPreviousData : undefined,
     staleTime: 5 * 60_000,
     retry: (count, err) => count < 1 && (err.code === "API_UNAVAILABLE" || err.code === "INTERNAL"),
   });

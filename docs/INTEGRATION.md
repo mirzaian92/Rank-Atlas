@@ -5,7 +5,7 @@ Integrate **one tool at a time**, in this order. A tool goes live only after eve
 | # | Tool | Status |
 |---|---|---|
 | 1 | Domain Overview | **Ready** — live code written and tested against a local fake server; not yet run against the real API |
-| 2 | Organic Research | Mock |
+| 2 | Organic Research | **Ready** — server-side paging, sorting and filters; tested against the fake server; not yet run against the real API |
 | 3 | Keyword Overview (+ Keyword Difficulty) | Mock |
 | 4 | Keyword Magic Tool | Mock |
 | 5 | Organic Competitors | Mock |
@@ -122,11 +122,81 @@ DATAFORSEO_LIVE_TOOLS=domain-overview
 
 ---
 
+## Integration #2 — Organic Research
+
+### Files
+
+| File | Role |
+|---|---|
+| `src/lib/reports/ranked-query.ts` | Shared query spec (page, size, sort, filters). The zod schema validates URL params; `applyRankedQuery` is the mock implementation. |
+| `src/lib/dataforseo/filters.ts` | `rankedQueryToDfs`: query → DataForSEO `filters` / `order_by` / `limit` / `offset` (max 8 conditions) |
+| `src/lib/dataforseo/services/labs-common.ts` | Shared payload builders for `domain_rank_overview` / `historical_rank_overview`, so the cache is shared with Domain Overview |
+| `src/lib/dataforseo/services/organic-research.ts` | `summary`, `keywords` and `pages` views |
+| `src/lib/client/ranked-table.ts` | Table state → query params |
+| `src/components/data/data-table.tsx` | New `remote` mode: sorting, filters, debounced search and paging are delegated to the server |
+| `src/app/(app)/seo/organic-research/page.tsx` | UI |
+| `tests/*.test.ts` | Unit tests for the translator, schema, mock query and normalizers (`npm test`) |
+
+### Requests
+
+`GET /api/reports/organic-research?q=…&view=summary|keywords|pages&page=&size=&sort=&dir=&inc=&exc=&posMin=&posMax=&volMin=&volMax=&kdMin=&kdMax=&cpcMin=&cpcMax=&intent=&serp=`
+
+| View | Endpoint | Payload |
+|---|---|---|
+| summary | `domain_rank_overview` + `historical_rank_overview` | Identical to Domain Overview, so it is usually a **cache hit** |
+| keywords | `ranked_keywords/live` | `item_types: ["organic"]`, `limit` (25 / 50 / 100), `offset`, `order_by` (+ secondary `search_volume,desc` for stable paging), `filters` |
+| pages | `relevant_pages/live` | `limit`, `offset`, `order_by: ["metrics.organic.etv,desc"]` |
+
+Keywords and pages also call `domain_rank_overview` to get the domain's ETV for "Traffic %". That call is normally cached.
+
+Filter mapping:
+
+| UI filter | DataForSEO condition |
+|---|---|
+| Keyword search / Include | `keyword_data.keyword ilike %word%` (LIKE wildcards escaped) |
+| Exclude | `keyword_data.keyword not_ilike %word%` |
+| Positions | `ranked_serp_element.serp_item.rank_group` `>=` / `<=` |
+| Volume / KD / CPC | `keyword_data.keyword_info.search_volume`, `keyword_data.keyword_properties.keyword_difficulty`, `keyword_data.keyword_info.cpc` |
+| Intent | `keyword_data.search_intent_info.main_intent in [...]` |
+| SERP features | `ranked_serp_element.serp_item_types has X`, OR-grouped when several are selected |
+
+Sortable columns: Traffic (and Traffic %, which sorts by traffic), Position, Volume, KD, CPC. Other columns are not sortable in this view, because the API can't order by them.
+
+Limits:
+- At most 8 filter conditions per request; the API returns `VALIDATION_ERROR` before any request if exceeded.
+- Paging stops at row 20,000.
+- Export covers the current page.
+
+**VERIFY:**
+- `has` works on `serp_item_types`.
+- Nested OR groups are accepted inside `filters`.
+- `ilike` / `not_ilike` on `keyword_data.keyword`.
+- `total_count` reflects the filtered total.
+- `relevant_pages` returns `total_count`.
+
+### Cost
+
+| Action | Estimate |
+|---|---|
+| Each keywords page (uncached) | ≈ $0.01 + $0.0001 × rows → 50 rows ≈ $0.015 |
+| Each pages page | ≈ $0.0125 |
+
+Results are cached for 3 days (keywords) and 7 days (pages), keyed by the full query. Revisiting a page, sort or filter combination within that window is free. Changing the search text is debounced (400 ms), so typing doesn't fire a request per keystroke.
+
+### Go-live checklist (Organic Research)
+
+- [ ] Domain Overview is live and verified (shares the summary calls).
+- [ ] Sandbox: every filter and every sortable column returns rows without a provider error.
+- [ ] One real domain: compare page 1 against the raw `ranked_keywords` JSON; check `total_count` with and without a filter.
+- [ ] Page 2 / page 3 rows don't overlap page 1 (stable ordering).
+- [ ] Add `organic-research` to `DATAFORSEO_LIVE_TOOLS`.
+
+---
+
 ## Later tools — endpoint map
 
 | Tool | Endpoints | Notes |
 |---|---|---|
-| Organic Research | `labs/google/ranked_keywords/live`, `labs/google/relevant_pages/live`, `historical_rank_overview` | Server-side pagination via `offset` / `limit`. Translate table filters into DataForSEO `filters` arrays. Use the `DataTable` `server` prop. |
 | Keyword Overview / Difficulty | `labs/google/keyword_overview/live`, `labs/google/bulk_keyword_difficulty/live`, `serp/google/organic/live/advanced` | Up to 700 keywords per KD task. **VERIFY** the limit. |
 | Keyword Magic Tool | `labs/google/keyword_suggestions/live` (phrase), `related_keywords/live` (related), `keyword_ideas/live` (broad) | Map the UI modes to these endpoints; build questions with a `filters` regex or from `keyword_suggestions`. |
 | Organic Competitors | `labs/google/competitors_domain/live` | |

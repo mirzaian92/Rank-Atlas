@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   flexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useReactTable,
   type ColumnDef, type SortingState, type VisibilityState, type RowData,
@@ -28,11 +28,17 @@ declare module "@tanstack/react-table" {
   }
 }
 
-export type ServerPagination = {
+/** Table state owned by the parent when rows are paged / filtered / sorted on the server. */
+export type RemoteState = { pageIndex: number; pageSize: number; sorting: SortingState; filters: FilterState; search: string };
+
+export type RemoteControl = {
+  /** Filtered total reported by the server. */
   total: number;
-  pageIndex: number;
-  pageSize: number;
-  onChange: (pageIndex: number, pageSize: number) => void;
+  state: RemoteState;
+  onChange: (next: RemoteState) => void;
+  /** True while a new page is loading (rows stay visible, dimmed). */
+  fetching?: boolean;
+  pageSizes?: readonly number[];
 };
 
 export type DataTableProps<T> = {
@@ -49,8 +55,11 @@ export type DataTableProps<T> = {
   toolbar?: React.ReactNode;
   emptyTitle?: string;
   emptyDescription?: string;
-  /** When set, pagination is controlled by the server (offset/limit) instead of client-side. */
-  server?: ServerPagination;
+  /**
+   * Remote mode: sorting, filters, search and paging are reported to the parent, which fetches
+   * that page from the server. `data` must already be the current page.
+   */
+  remote?: RemoteControl;
   className?: string;
   /** Hide the toolbar for compact widget tables. */
   compact?: boolean;
@@ -60,45 +69,84 @@ export type DataTableProps<T> = {
 
 /**
  * Reusable report table: quick search, filters, sorting, column visibility, pagination, export.
- * Filters and search operate on loaded rows; with `server` pagination the parent should pass
- * filters to the API instead (see Phase 2 notes in docs/INTEGRATION.md).
+ * Local mode filters/sorts/pages loaded rows in the browser; remote mode delegates all of that
+ * to the server (see `remote`).
  */
 export function DataTable<T>({
   data, columns, filters = [], searchPlaceholder = "Search", searchText, exportName, exportNote, pageSize = 25,
-  initialSort = [], toolbar, emptyTitle = "No rows match", emptyDescription = "Try clearing filters or changing the search.", server,
+  initialSort = [], toolbar, emptyTitle = "No rows match", emptyDescription = "Try clearing filters or changing the search.", remote,
   className, compact, countLabel,
 }: DataTableProps<T>) {
-  const [sorting, setSorting] = useState<SortingState>(initialSort);
+  const [localSorting, setLocalSorting] = useState<SortingState>(initialSort);
   const [visibility, setVisibility] = useState<VisibilityState>({});
-  const [search, setSearch] = useState("");
-  const [filterState, setFilterState] = useState<FilterState>({});
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize });
+  const [localSearch, setLocalSearch] = useState("");
+  const [localFilters, setLocalFilters] = useState<FilterState>({});
+  const [localPagination, setLocalPagination] = useState({ pageIndex: 0, pageSize });
+
+  // In remote mode the parent owns the state; the search box is debounced before reporting.
+  const sorting = remote ? remote.state.sorting : localSorting;
+  const filterState = remote ? remote.state.filters : localFilters;
+  const pagination = remote ? { pageIndex: remote.state.pageIndex, pageSize: remote.state.pageSize } : localPagination;
+  const [searchInput, setSearchInput] = useState(remote?.state.search ?? "");
+  const search = remote ? remote.state.search : localSearch;
+  const remoteRef = useRef(remote);
+  remoteRef.current = remote;
+  useEffect(() => {
+    if (!remote) return;
+    const t = setTimeout(() => {
+      const r = remoteRef.current!;
+      if (searchInput.trim() !== r.state.search) r.onChange({ ...r.state, search: searchInput.trim(), pageIndex: 0 });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [searchInput, remote]);
+
+  const setSearch = (v: string) => {
+    setSearchInput(v);
+    if (!remote) {
+      setLocalSearch(v);
+      setLocalPagination((p) => ({ ...p, pageIndex: 0 }));
+    }
+  };
+  const setFilters = (next: FilterState) => {
+    if (remote) remote.onChange({ ...remote.state, filters: next, pageIndex: 0 });
+    else {
+      setLocalFilters(next);
+      setLocalPagination((p) => ({ ...p, pageIndex: 0 }));
+    }
+  };
 
   const filtered = useMemo(() => {
+    if (remote) return data;
     let rows = applyFilters(data, filters, filterState);
     const s = search.trim().toLowerCase();
     if (s && searchText) rows = rows.filter((r) => searchText(r).toLowerCase().includes(s));
     return rows;
-  }, [data, filters, filterState, search, searchText]);
+  }, [data, filters, filterState, search, searchText, remote]);
 
   const table = useReactTable({
     data: filtered,
     columns,
-    state: { sorting, columnVisibility: visibility, pagination: server ? { pageIndex: server.pageIndex, pageSize: server.pageSize } : pagination },
-    onSortingChange: setSorting,
+    state: { sorting, columnVisibility: visibility, pagination },
+    onSortingChange: (u) => {
+      const next = typeof u === "function" ? u(sorting) : u;
+      if (remote) remote.onChange({ ...remote.state, sorting: next, pageIndex: 0 });
+      else setLocalSorting(next);
+    },
     onColumnVisibilityChange: setVisibility,
     onPaginationChange: (u) => {
-      const next = typeof u === "function" ? u(server ? { pageIndex: server.pageIndex, pageSize: server.pageSize } : pagination) : u;
-      if (server) server.onChange(next.pageIndex, next.pageSize);
-      else setPagination(next);
+      const next = typeof u === "function" ? u(pagination) : u;
+      if (remote) remote.onChange({ ...remote.state, pageIndex: next.pageIndex, pageSize: next.pageSize });
+      else setLocalPagination(next);
     },
-    manualPagination: Boolean(server),
-    rowCount: server?.total,
+    manualPagination: Boolean(remote),
+    manualSorting: Boolean(remote),
+    enableMultiSort: !remote,
+    rowCount: remote?.total,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    getSortedRowModel: remote ? undefined : getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: server ? undefined : getPaginationRowModel(),
-    autoResetPageIndex: true,
+    getPaginationRowModel: remote ? undefined : getPaginationRowModel(),
+    autoResetPageIndex: !remote,
   });
 
   const exportCols = table
@@ -109,8 +157,8 @@ export function DataTable<T>({
       value: (row: T) => (c.columnDef.meta?.exportValue ? c.columnDef.meta.exportValue(row) : c.accessorFn!(row, 0)),
     }));
 
-  const total = server?.total ?? filtered.length;
-  const activeFilters = filters.filter((f) => isActive(filterState[f.id])).length + (search ? 1 : 0);
+  const total = remote?.total ?? filtered.length;
+  const activeFilters = filters.filter((f) => isActive(filterState[f.id])).length + ((remote ? searchInput : search) ? 1 : 0);
   const { pageIndex, pageSize: ps } = table.getState().pagination;
   const from = total === 0 ? 0 : pageIndex * ps + 1;
   const to = Math.min(total, (pageIndex + 1) * ps);
@@ -123,11 +171,8 @@ export function DataTable<T>({
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-3" />
               <Input
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPagination((p) => ({ ...p, pageIndex: 0 }));
-                }}
+                value={remote ? searchInput : search}
+                onChange={(e) => setSearch(e.target.value)}
                 placeholder={searchPlaceholder}
                 className="h-8 w-[220px] pl-8 text-[13px]"
                 aria-label={searchPlaceholder}
@@ -139,14 +184,15 @@ export function DataTable<T>({
               key={f.id}
               def={f}
               value={filterState[f.id]}
-              onChange={(v) => {
-                setFilterState((s) => ({ ...s, [f.id]: v }));
-                setPagination((p) => ({ ...p, pageIndex: 0 }));
-              }}
+              onChange={(v) => setFilters({ ...filterState, [f.id]: v })}
             />
           ))}
           {activeFilters > 0 && (
-            <Button variant="link" size="xs" onClick={() => { setFilterState({}); setSearch(""); }}>Clear all</Button>
+            <Button variant="link" size="xs" onClick={() => {
+              setSearchInput("");
+              if (remote) remote.onChange({ ...remote.state, filters: {}, search: "", pageIndex: 0 });
+              else { setLocalFilters({}); setLocalSearch(""); setLocalPagination((p) => ({ ...p, pageIndex: 0 })); }
+            }}>Clear all</Button>
           )}
           {toolbar}
           <div className="ml-auto flex items-center gap-2">
@@ -169,14 +215,14 @@ export function DataTable<T>({
                 name={exportName}
                 columns={exportCols}
                 rows={() => table.getSortedRowModel().rows.map((r) => r.original)}
-                note={exportNote ?? (server ? "Exports the rows currently loaded." : "Exports all rows matching current filters and sort.")}
+                note={exportNote ?? (remote ? "Exports the rows on this page. Live data is paged; increase rows per page to export more." : "Exports all rows matching current filters and sort.")}
               />
             )}
           </div>
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <div className={cn("overflow-x-auto transition-opacity", remote?.fetching && "pointer-events-none opacity-50")} aria-busy={remote?.fetching || undefined}>
         <table className="w-full border-collapse text-[13px]">
           <thead>
             {table.getHeaderGroups().map((hg) => (
@@ -231,7 +277,7 @@ export function DataTable<T>({
             <Select value={String(ps)} onValueChange={(v) => table.setPageSize(Number(v))}>
               <SelectTrigger className="h-7 w-[72px] text-[12.5px]" aria-label="Rows per page"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {[10, 25, 50, 100].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+                {(remote?.pageSizes ?? [10, 25, 50, 100]).map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
