@@ -102,10 +102,10 @@ export const TOOLS: ToolDef[] = [
   },
   {
     id: "position-tracking", label: "Position Tracking", section: "seo", href: "/seo/position-tracking",
-    icon: Crosshair, query: "domain", placeholder: "Enter tracked domain",
+    icon: Crosshair, query: "none", placeholder: "Search a domain or keyword",
     description: "Track Google positions for a keyword set over time from stored daily SERP checks.",
-    order: 7, integration: "mock",
-    endpoints: ["POST /v3/serp/google/organic/task_post", "GET /v3/serp/google/organic/tasks_ready", "GET /v3/serp/google/organic/task_get/advanced/{id}"],
+    order: 7, integration: "ready",
+    endpoints: ["POST /v3/serp/google/organic/task_post", "GET /v3/serp/google/organic/task_get/advanced/{id}", "POST /v3/dataforseo_labs/google/keyword_overview/live (volumes)"],
   },
   {
     id: "backlink-analytics", label: "Backlink Analytics", section: "links", href: "/links/backlink-analytics",
@@ -135,8 +135,8 @@ export const TOOLS: ToolDef[] = [
     id: "site-audit", label: "Site Audit", section: "site", href: "/site/site-audit",
     icon: Bug, query: "domain", placeholder: "Enter domain to crawl",
     description: "Crawl a site and report technical SEO issues by severity.",
-    order: 11, integration: "mock",
-    endpoints: ["POST /v3/on_page/task_post", "POST /v3/on_page/summary/{id}", "POST /v3/on_page/pages", "POST /v3/on_page/duplicate_tags", "POST /v3/on_page/links"],
+    order: 11, integration: "ready",
+    endpoints: ["POST /v3/on_page/task_post", "GET /v3/on_page/summary/{id}", "POST /v3/on_page/pages"],
   },
   {
     id: "historical-trends", label: "Historical Domain Trends", section: "site", href: "/site/historical-trends",

@@ -213,3 +213,21 @@ export type DfsSpamScoreItem = { target: string; spam_score: number | null };
 
 /** backlinks/bulk_ranks item. VERIFY result shape. */
 export type DfsBulkRankItem = { target: string; rank: number | null };
+
+// ---------- OnPage API ----------
+export type DfsOnPageSummary = {
+  crawl_progress?: "in_progress" | "finished" | string;
+  crawl_stop_reason?: string | null;
+  crawl_status?: { max_crawl_pages?: number | null; pages_in_queue?: number | null; pages_crawled?: number | null } | null;
+  domain_info?: { name?: string; crawl_start?: string | null; crawl_end?: string | null; total_pages?: number | null } | null;
+  page_metrics?: ({ onpage_score?: number | null; checks?: Record<string, number> | null } & Record<string, unknown>) | null;
+};
+export type DfsOnPagePage = {
+  resource_type?: string;
+  status_code?: number | null;
+  url: string;
+  onpage_score?: number | null;
+  meta?: { title?: string | null; content?: { plain_text_word_count?: number | null } | null } | null;
+  page_timing?: { duration_time?: number | null } | null;
+  checks?: Record<string, boolean> | null;
+};

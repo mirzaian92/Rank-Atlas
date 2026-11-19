@@ -3,9 +3,11 @@
 A Semrush-style SEO research platform (original branding) built on **DataForSEO API v3**.
 Next.js App Router · TypeScript · Tailwind CSS v4 · shadcn/ui-style components (Radix) · Recharts · TanStack Table · TanStack Query · PostgreSQL · Prisma.
 
-> **Status:** All 14 tools have full UI with **labelled mock data**. The DataForSEO layer is built.
-> Domain Overview (#1), Organic Research (#2), Keyword Overview / Keyword Difficulty (#3), Keyword Magic Tool (#4), Organic Competitors (#5), Keyword Gap (#6), the backlink tools (#8–10), Historical Trends (#12) and SERP Analysis (#13) have live implementations that are **switched off**
-> by default. No paid requests are made unless you enable them.
+> **Status:** All 14 tools have full UI with **labelled mock data**, and every tool has a live
+> DataForSEO implementation (13 integrations; Keyword Overview and Keyword Difficulty share one).
+> Live mode is **switched off** by default, and no paid requests are made unless you enable it.
+> The live code has been tested against a local fake API, not yet against DataForSEO itself.
+> See `docs/INTEGRATION.md` for the items to verify before going live.
 
 ## Local setup
 
@@ -139,6 +141,7 @@ Next.js 16's Turbopack dev server sometimes gets stuck in a full-reload loop ("[
 1. Import the GitHub repo in Vercel; the Next.js preset is detected automatically.
 2. Optional: add a Postgres database (Storage → Create Database), which sets `DATABASE_URL`.
 3. Set `APP_ENCRYPTION_KEY` (a fresh key) and keep `DATAFORSEO_LIVE_ENABLED=false` until login exists.
+4. Set `CRON_SECRET` (any long random string). `vercel.json` schedules `/api/cron/daily` twice each morning (UTC): it runs Position Tracking checks and finishes Site Audit crawls.
 
 The `vercel-build` script (`scripts/vercel-build.mjs`) runs `prisma migrate deploy` when `DATABASE_URL` is set, then `next build`. Without a database it skips migrations, so a mock-only deploy still builds.
 

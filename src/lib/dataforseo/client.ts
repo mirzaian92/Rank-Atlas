@@ -71,47 +71,11 @@ async function dfsCallInner<R>(key: EndpointKey, payload: Record<string, unknown
   const estimate = payload ? ep.estimate(payload) : ep.estimate({});
   if (!("free" in ep && ep.free)) await assertWithinBudget(estimate);
 
-  let release: () => void;
-  try {
-    release = await acquire(ep.api);
-  } catch {
-    throw providerError("RATE_LIMITED", "Local rate limit reached for this API. Try again in a minute.");
-  }
-
-  const started = Date.now();
-  const auth = "Basic " + Buffer.from(`${creds.login}:${creds.password}`).toString("base64");
-  let res: Response | null = null;
-  let lastErr: unknown = null;
-  try {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 60_000);
-      try {
-        res = await fetch(apiBaseUrl() + path, {
-          method: ep.method,
-          headers: { Authorization: auth, "Content-Type": "application/json" },
-          body: ep.method === "POST" ? JSON.stringify([payload ?? {}]) : undefined,
-          signal: ctrl.signal,
-          cache: "no-store",
-        });
-        if (!RETRYABLE_HTTP.has(res.status)) break;
-      } catch (e) {
-        lastErr = e;
-        res = null;
-      } finally {
-        clearTimeout(timer);
-      }
-      await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));
-    }
-  } finally {
-    release();
-  }
-
-  const durationMs = Date.now() - started;
+  const sent = await send(ep, path, ep.method === "POST" ? [payload ?? {}] : undefined, creds, opts.timeoutMs);
+  const { res, durationMs } = sent;
   if (!res) {
-    const msg = lastErr instanceof Error ? lastErr.message : "network error";
-    await logUsage({ api: ep.api, endpoint: path, tool: opts.tool, estimatedUsd: estimate, durationMs, error: msg });
-    throw providerError("API_UNAVAILABLE", `DataForSEO is unreachable (${msg}).`);
+    await logUsage({ api: ep.api, endpoint: path, tool: opts.tool, estimatedUsd: estimate, durationMs, error: sent.error });
+    throw providerError("API_UNAVAILABLE", `DataForSEO is unreachable (${sent.error}).`);
   }
 
   let body: DfsEnvelope<R>;
@@ -140,7 +104,7 @@ async function dfsCallInner<R>(key: EndpointKey, payload: Record<string, unknown
   if (task && NO_RESULTS_CODES.has(task.status_code)) result = [];
   else {
     const taskErr = task ? mapProviderStatus(task.status_code, task.status_message) : "PROVIDER_ERROR";
-    if (taskErr) throw providerError(taskErr, `DataForSEO: ${statusMessage} (${statusCode})`);
+    if (taskErr) throw providerError(taskErr, `DataForSEO: ${statusMessage} (${statusCode})`, { statusCode });
     result = task!.result ?? [];
   }
 
@@ -151,4 +115,108 @@ async function dfsCallInner<R>(key: EndpointKey, payload: Record<string, unknown
 /** Free account check (balance, login). Used by Settings → "Test connection". */
 export async function dfsUserData() {
   return dfsCall<import("./types").DfsUserData>("userData", null);
+}
+
+// ---------------------------------------------------------------------------
+// Shared HTTP send (auth, rate limit, timeout, retry on network / 429 / 5xx)
+// ---------------------------------------------------------------------------
+async function send(
+  ep: (typeof ENDPOINTS)[EndpointKey],
+  path: string,
+  body: unknown[] | undefined,
+  creds: { login: string; password: string },
+  timeoutMs = 60_000,
+): Promise<{ res: Response | null; durationMs: number; error?: string }> {
+  let release: () => void;
+  try {
+    release = await acquire(ep.api);
+  } catch {
+    throw providerError("RATE_LIMITED", "Local rate limit reached for this API. Try again in a minute.");
+  }
+  const started = Date.now();
+  const auth = "Basic " + Buffer.from(`${creds.login}:${creds.password}`).toString("base64");
+  let res: Response | null = null;
+  let lastErr: unknown = null;
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+      try {
+        res = await fetch(apiBaseUrl() + path, {
+          method: ep.method,
+          headers: { Authorization: auth, "Content-Type": "application/json" },
+          body: body ? JSON.stringify(body) : undefined,
+          signal: ctrl.signal,
+          cache: "no-store",
+        });
+        if (!RETRYABLE_HTTP.has(res.status)) break;
+      } catch (e) {
+        lastErr = e;
+        res = null;
+      } finally {
+        clearTimeout(timer);
+      }
+      await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));
+    }
+  } finally {
+    release();
+  }
+  return { res, durationMs: Date.now() - started, error: res ? undefined : lastErr instanceof Error ? lastErr.message : "network error" };
+}
+
+/** Task status codes meaning "accepted, not finished yet" (VERIFY: 40601 Task Handed, 40602 Task In Queue). */
+export const PENDING_TASK_CODES = new Set([40601, 40602]);
+
+export function isTaskPending(e: unknown): boolean {
+  const code = (e as { details?: { statusCode?: number } })?.details?.statusCode;
+  return typeof code === "number" && PENDING_TASK_CODES.has(code);
+}
+
+export type DfsBatchTask<R> = { id: string | null; statusCode: number; statusMessage: string; costUsd: number; tag: string | null; result: R[] };
+
+/**
+ * Post several tasks in one request (task_post endpoints accept up to 100). Never cached.
+ * Budget is checked against the summed estimate; one usage row is logged with the total cost.
+ */
+export async function dfsBatch<R>(key: EndpointKey, payloads: Record<string, unknown>[], opts: { tool: ToolId }): Promise<{ tasks: DfsBatchTask<R>[]; costUsd: number }> {
+  if (payloads.length === 0) return { tasks: [], costUsd: 0 };
+  if (payloads.length > 100) throw providerError("VALIDATION_ERROR", "At most 100 tasks per request.");
+  const ep = ENDPOINTS[key];
+  const gate = isToolLive(opts.tool);
+  if (!gate.live) throw providerError("LIVE_DISABLED", gate.reason);
+  const creds = await getCredentials();
+  if (!creds) throw providerError("NOT_CONFIGURED", "DataForSEO credentials are not configured. Add them in Settings → API credentials.");
+  const estimate = payloads.reduce((a, p) => a + ep.estimate(p), 0);
+  await assertWithinBudget(estimate);
+
+  const sent = await send(ep, ep.path, payloads, creds);
+  if (!sent.res) {
+    await logUsage({ api: ep.api, endpoint: ep.path, tool: opts.tool, estimatedUsd: estimate, durationMs: sent.durationMs, error: sent.error });
+    throw providerError("API_UNAVAILABLE", `DataForSEO is unreachable (${sent.error}).`);
+  }
+  let body: DfsEnvelope<R>;
+  try {
+    body = (await sent.res.json()) as DfsEnvelope<R>;
+  } catch {
+    throw providerError("API_UNAVAILABLE", `DataForSEO returned HTTP ${sent.res.status}.`);
+  }
+  const costUsd = Number(body.cost ?? 0);
+  await logUsage({
+    api: ep.api, endpoint: ep.path, tool: opts.tool, httpStatus: sent.res.status, statusCode: body.status_code, statusMessage: body.status_message,
+    costUsd, estimatedUsd: estimate, durationMs: sent.durationMs, resultCount: body.tasks_count,
+    error: body.tasks_error ? `${body.tasks_error} task(s) failed` : undefined,
+  });
+  const envErr = mapProviderStatus(body.status_code, body.status_message);
+  if (envErr) throw providerError(envErr, `DataForSEO: ${body.status_message} (${body.status_code})`);
+  return {
+    costUsd,
+    tasks: (body.tasks ?? []).map((t) => ({
+      id: t.id ?? null,
+      statusCode: t.status_code,
+      statusMessage: t.status_message,
+      costUsd: Number(t.cost ?? 0),
+      tag: typeof t.data?.tag === "string" ? (t.data.tag as string) : null,
+      result: t.result ?? [],
+    })),
+  };
 }

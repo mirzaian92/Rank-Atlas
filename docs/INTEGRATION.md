@@ -10,11 +10,11 @@ Integrate **one tool at a time**, in this order. A tool goes live only after eve
 | 4 | Keyword Magic Tool | **Ready** — server-side paging/sort/filters across 5 modes; tested against the fake server; not yet run against the real API |
 | 5 | Organic Competitors | **Ready** — tested against the fake server; not yet run against the real API |
 | 6 | Keyword Gap | **Ready** — pairwise intersections merged; verified against fake-server ground truth; not yet run against the real API |
-| 7 | Position Tracking | Mock |
+| 7 | Position Tracking | **Ready** — projects in Postgres, standard-queue checks, collection on view + daily cron; verified against fake ground truth |
 | 8 | Backlink Analytics | **Ready** — summary + history + 3 server-paged tables; tested against the fake server |
 | 9 | Backlink Gap | **Ready** — one domain_intersection request per tab page; verified against fake ground truth |
 | 10 | Backlink Audit | **Ready** — referring_domains sample + bulk_spam_score + local risk rules |
-| 11 | Site Audit | Mock |
+| 11 | Site Audit | **Ready** — OnPage crawl start/poll/finalize; reports stored locally with crawl history |
 | 12 | Historical Domain Trends | **Ready** — reuses Domain Overview / Backlink Analytics history payloads; gaps preserved |
 | 13 | SERP Analysis | **Ready** — device/depth, optional Domain Rank, re-check bypasses cache |
 
@@ -474,6 +474,71 @@ The cost estimate (`estimateSerpCost` in `src/lib/reports/serp.ts`) is shown nex
 
 ---
 
+## Integration #7 — Position Tracking
+
+**Data model.** `TrackingProject` (domain, market, device, `depth`), `TrackedKeyword` (tags, search volume) and `RankSnapshot` (one row per check). Each check has a status (`pending`, `done` or `failed`) and a source (`live` or `mock`). Up to 500 keywords per project.
+
+**Flow:**
+
+| Step | What happens |
+|---|---|
+| Check | `runChecks(project)` covers keywords with no pending/done check today (UTC). **Live:** `serp/google/organic/task_post` in batches of ≤ 100 tasks per request (`dfsBatch`), `tag` = keyword id, stored as *pending* with the task id and cost. **Mock:** labelled mock positions are written immediately. |
+| Collect | `collectResults()` calls `serp/google/organic/task_get/advanced/{id}` (free) for pending checks older than 30 s. The first organic result whose domain is the tracked domain or a subdomain gives the position (`rank_group`) and URL. "Not in depth" = `null`. "Task in queue" (40601/40602) stays pending. Pending for > 24 h → failed. |
+| When | On every project-page load (the page polls every 15 s while checks are pending), and by the daily cron. |
+| Report | `buildTrackingReport` uses the latest completed check per keyword per day. Days without checks are **gaps**; nothing is back-filled. |
+
+Visibility = Σ CTR(position) ÷ (keywords × 30%).
+
+**Search volume:** one `keyword_overview` request when keywords are added (live only).
+
+**Cost:** ≈ $0.0006 per 10 results per keyword per day (standard queue). The project dialog shows the per-day and per-month estimate; actual cost is logged per task.
+
+**Cron (`/api/cron/daily`, `vercel.json`):**
+- 06:17 UTC: post today's checks for every project, then collect.
+- 06:47 UTC (`?phase=collect`): collect again.
+
+The cron also finalizes unfinished site audits. Set `CRON_SECRET` in Vercel; Vercel then sends it as a Bearer token. Locally, call `curl localhost:3000/api/cron/daily` (allowed only when not in production).
+
+**VERIFY:**
+- Standard-queue SERP pricing per depth.
+- `task_post` response `tasks[].data.tag` echo.
+- Pending status codes 40601 / 40602.
+- `task_get/advanced` item fields `rank_group`, `domain`, `url`.
+
+---
+
+## Integration #11 — Site Audit
+
+| Step | Endpoint / action |
+|---|---|
+| Start | `on_page/task_post` `{ target, max_crawl_pages, load_resources: false, enable_javascript: false, store_raw_html: false }`. Page limits 100 – 2,000; ≈ $0.000125 per page (basic crawl), shown before starting. One running crawl per domain. |
+| Poll | `on_page/summary/{task_id}` (free). The page polls every 8 s while crawling and shows pages crawled / queued. |
+| Finish | When `crawl_progress = "finished"`: `on_page/pages` (`limit: 1000`, ordered by `onpage_score`) is fetched (free) and `normalizeOnPage` builds the report. The report is **stored in `SiteAuditCrawl.summary`**, so it stays available after DataForSEO deletes the task. |
+| History | Every crawl is listed per domain and selectable. |
+| Daily cron | Finalizes crawls nobody has viewed. |
+
+**Issue mapping:** only checks that indicate a problem are mapped (`ONPAGE_ISSUES` in `src/lib/dataforseo/normalize/on-page.ts`), with title, severity and category. Positive checks (`is_https`, `has_micromarkup`, …) and unknown checks are ignored.
+
+**Status codes:** from `is_4xx_code`, `is_5xx_code` and `is_redirect`; 2xx = crawled − those.
+
+The mock-only "thematic scores" panel was replaced by **issues by category**, because DataForSEO doesn't provide thematic scores.
+
+**Mock mode:** starting a crawl creates an instantly finished, labelled mock crawl.
+
+**VERIFY:**
+- `on_page/summary` shape: `crawl_progress`, `crawl_status`, `page_metrics.checks` names.
+- `on_page/pages` `order_by` field.
+- Per-page pricing.
+
+### Go-live checklist (#7, #11)
+
+- [ ] Sandbox: a project's first check goes pending → done; a crawl goes crawling → finished.
+- [ ] One real project with ~10 keywords: compare positions with a manual Google check (same location/device).
+- [ ] Deploy with `CRON_SECRET` set; confirm the cron runs (Vercel → Project → Cron Jobs).
+- [ ] Add `position-tracking,site-audit` to `DATAFORSEO_LIVE_TOOLS`.
+
+---
+
 ## Usage meter
 
 The header shows today's DataForSEO spend, with a bar against the daily limit. It turns amber at 80% of a limit and red at 100%, with an icon and label as well as colour. Click it to see:
@@ -494,5 +559,3 @@ The meter refreshes every 20 s and immediately after any report that touched the
 | Tool | Endpoints | Notes |
 |---|---|---|
 | Keyword Magic Tool | `labs/google/keyword_suggestions/live` (phrase), `related_keywords/live` (related), `keyword_ideas/live` (broad) | Map the UI modes to these endpoints; build questions with a `filters` regex or from `keyword_suggestions`. |
-| Position Tracking | `serp/google/organic/task_post` → `tasks_ready` → `task_get/advanced/{id}` | Standard queue, which is cheaper. Daily job writes `RankSnapshot`. History comes **only** from stored snapshots. |
-| Site Audit | `on_page/task_post` → `on_page/summary/{id}` → `on_page/pages`, `duplicate_tags`, `links` | Asynchronous: store the task id in `SiteAuditCrawl` and poll. Show a cost estimate before starting (≈ $0.000125 per page). |

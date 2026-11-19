@@ -121,6 +121,83 @@ const fakeKeyword = (keyword, i) => ({
 
 const hash = (s) => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 
+// ---- async task simulation (SERP standard queue, OnPage crawls) ----
+const serpTasks = new Map(); // id -> { task, readyAt }
+const crawls = new Map(); // id -> { task, startedAt }
+const QUEUE_MS = Number(process.env.FAKE_QUEUE_MS ?? 4000);
+const CRAWL_MS = Number(process.env.FAKE_CRAWL_MS ?? 9000);
+const newId = () => `11${Date.now().toString().slice(-8)}${Math.floor(Math.random() * 1e6)}`;
+
+function serpFor(task) {
+  // The tracked domain ranks for most keywords, at a position derived from the keyword.
+  const pos = 1 + (hash(task.keyword) % 30);
+  const ranks = hash(task.keyword) % 5 !== 0;
+  const items = Array.from({ length: Math.min(task.depth ?? 100, 40) }, (_, i) => ({
+    type: "organic", rank_group: i + 1, rank_absolute: i + 1,
+    domain: ranks && i + 1 === pos ? `www.${task.tracked ?? "tracked.com"}` : `other${i}.com`,
+    url: ranks && i + 1 === pos ? `https://www.${task.tracked ?? "tracked.com"}/${task.keyword.replace(/\s+/g, "-")}` : `https://other${i}.com/`,
+    title: `Result ${i + 1}`,
+  }));
+  return [{ keyword: task.keyword, se_results_count: 100000, item_types: ["organic", "people_also_ask"], datetime: "2026-11-19 06:00:00 +00:00", items }];
+}
+
+function asyncRoute(req, body, envelope, res) {
+  const tasks = body ? JSON.parse(body) : [];
+  if (req.url === "/v3/serp/google/organic/task_post") {
+    const out = tasks.map((t) => {
+      const id = newId();
+      serpTasks.set(id, { task: { ...t, tracked: process.env.FAKE_TRACKED_DOMAIN }, readyAt: Date.now() + QUEUE_MS });
+      return { id, status_code: 20100, status_message: "Task Created.", time: "0.01 sec.", cost: 0.0006 * Math.ceil((t.depth ?? 10) / 10), result_count: 0, path: [], data: t, result: null };
+    });
+    res.end(JSON.stringify({ version: "fake", status_code: 20000, status_message: "Ok.", time: "0.01", cost: out.reduce((a, t) => a + t.cost, 0), tasks_count: out.length, tasks_error: 0, tasks: out }));
+    return true;
+  }
+  const tg = req.url.match(/^\/v3\/serp\/google\/organic\/task_get\/advanced\/(.+)$/);
+  if (tg) {
+    const t = serpTasks.get(tg[1]);
+    if (!t) return res.end(JSON.stringify(envelope(40400, "Task Not Found.", null, 0))), true;
+    if (Date.now() < t.readyAt) return res.end(JSON.stringify(envelope(40602, "Task In Queue.", null, 0))), true;
+    res.end(JSON.stringify(envelope(20000, "Ok.", serpFor(t.task), 0)));
+    return true;
+  }
+  if (req.url === "/v3/on_page/task_post") {
+    const id = newId();
+    crawls.set(id, { task: tasks[0], startedAt: Date.now() });
+    const env = envelope(20100, "Task Created.", null, 0.000125 * (tasks[0]?.max_crawl_pages ?? 100));
+    env.tasks[0].id = id;
+    res.end(JSON.stringify(env));
+    return true;
+  }
+  const sm = req.url.match(/^\/v3\/on_page\/summary\/(.+)$/);
+  if (sm) {
+    const c = crawls.get(sm[1]);
+    if (!c) return res.end(JSON.stringify(envelope(40400, "Task Not Found.", null, 0))), true;
+    const max = c.task.max_crawl_pages ?? 100;
+    const frac = Math.min(1, (Date.now() - c.startedAt) / CRAWL_MS);
+    const crawled = Math.round(Math.min(max, 60) * frac);
+    const finished = frac >= 1;
+    res.end(JSON.stringify(envelope(20000, "Ok.", [{
+      crawl_progress: finished ? "finished" : "in_progress",
+      crawl_status: { max_crawl_pages: max, pages_in_queue: finished ? 0 : Math.max(0, 60 - crawled), pages_crawled: crawled },
+      domain_info: { name: c.task.target, crawl_start: "2026-11-19 06:00:00 +00:00", crawl_end: finished ? "2026-11-19 06:04:00 +00:00" : null },
+      page_metrics: { onpage_score: 82.4, duplicate_title: 3, broken_links: 2, checks: { is_4xx_code: 4, is_redirect: 5, no_description: 11, title_too_long: 6, no_h1_tag: 7, is_https: crawled, high_loading_time: 2 } },
+    }], 0)));
+    return true;
+  }
+  if (req.url === "/v3/on_page/pages") {
+    const c = crawls.get(tasks[0]?.id);
+    const target = c?.task.target ?? "site.com";
+    const items = Array.from({ length: 60 }, (_, i) => ({
+      resource_type: "html", status_code: i % 15 === 0 ? 404 : i % 12 === 0 ? 301 : 200, url: `https://${target}/page-${i}`, onpage_score: 50 + (i * 7) % 50,
+      meta: { title: `Page ${i}`, content: { plain_text_word_count: 200 + i * 13 } }, page_timing: { duration_time: 300 + i * 20 },
+      checks: { no_description: i % 5 === 0, no_h1_tag: i % 8 === 0, is_https: true },
+    }));
+    res.end(JSON.stringify(envelope(20000, "Ok.", [{ total_items_count: items.length, items_count: items.length, items }], 0)));
+    return true;
+  }
+  return false;
+}
+
 let calls = 0;
 http.createServer((req, res) => {
   let body = "";
@@ -135,6 +212,7 @@ http.createServer((req, res) => {
     });
     res.setHeader("Content-Type", "application/json");
     if (!auth.startsWith("Basic ")) return res.end(JSON.stringify(envelope(40100, "You are not authorized to access this resource.", null, 0)));
+    if (asyncRoute(req, body, envelope, res)) { console.log("fake hit", req.method, req.url, body.slice(0, 160)); return; }
     if (!fn) return res.end(JSON.stringify(envelope(40400, "Not Found.", null, 0)));
     console.log("fake hit", req.method, req.url, body.slice(0, 160));
     const task = body ? JSON.parse(body)[0] ?? {} : {};

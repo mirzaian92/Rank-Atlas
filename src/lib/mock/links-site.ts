@@ -155,7 +155,6 @@ export function mockSiteAudit(target: string): SiteAudit {
     healthScore: r.int(58, 96),
     counts: { errors: count("error"), warnings: count("warning"), notices: count("notice") },
     issues: issues.sort((a, b) => ["error", "warning", "notice"].indexOf(a.severity) - ["error", "warning", "notice"].indexOf(b.severity) || b.pages - a.pages),
-    thematic: ["Crawlability", "HTTPS", "On-page", "Performance", "Internal linking", "Markup"].map((label) => ({ label, score: r.int(55, 100) })),
     statusCodes: [
       { code: "2xx", pages: Math.round(crawled * 0.9) }, { code: "3xx", pages: Math.round(crawled * 0.06) },
       { code: "4xx", pages: Math.round(crawled * 0.035) }, { code: "5xx", pages: Math.round(crawled * 0.005) },

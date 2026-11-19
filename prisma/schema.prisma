@@ -109,51 +109,67 @@ model DomainSnapshot {
 
 /// Position Tracking: a project tracks a set of keywords for one domain in one market.
 model TrackingProject {
-  id           String   @id @default(cuid())
-  name         String
-  domain       String
-  locationCode Int
-  languageCode String
-  device       String   @default("desktop")
-  createdAt    DateTime @default(now())
-  keywords     TrackedKeyword[]
+  id            String   @id @default(cuid())
+  name          String
+  domain        String
+  locationCode  Int
+  languageCode  String
+  device        String   @default("desktop")
+  /// SERP depth checked per keyword (10 / 20 / 50 / 100). Positions beyond it count as "not ranking".
+  depth         Int      @default(100)
+  createdAt     DateTime @default(now())
+  lastCheckedAt DateTime?
+  keywords      TrackedKeyword[]
 }
 
 model TrackedKeyword {
-  id         String   @id @default(cuid())
-  projectId  String
-  project    TrackingProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  keyword    String
-  tags       String[]
-  createdAt  DateTime @default(now())
-  ranks      RankSnapshot[]
+  id           String   @id @default(cuid())
+  projectId    String
+  project      TrackingProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  keyword      String
+  tags         String[]
+  searchVolume Int?
+  createdAt    DateTime @default(now())
+  ranks        RankSnapshot[]
 
   @@unique([projectId, keyword])
 }
 
-/// A single observed SERP position, captured from a real SERP API response.
+/// One SERP check for one keyword. Created as "pending" when the task is posted, filled in when
+/// the result is collected. History is built only from these rows — never back-filled.
 model RankSnapshot {
-  id         String   @id @default(cuid())
-  keywordId  String
-  keyword    TrackedKeyword @relation(fields: [keywordId], references: [id], onDelete: Cascade)
-  checkedAt  DateTime @default(now())
-  position   Int?     // null = not in top N
-  url        String?
+  id           String   @id @default(cuid())
+  keywordId    String
+  keyword      TrackedKeyword @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+  checkedAt    DateTime @default(now())
+  status       String   @default("done") // pending | done | failed
+  source       String   @default("live") // live | mock
+  position     Int?     // null = not in the checked depth
+  url          String?
   serpFeatures String[]
-  taskId     String?
+  taskId       String?
+  costUsd      Decimal  @default(0) @db.Decimal(12, 6)
+  error        String?
 
   @@index([keywordId, checkedAt])
+  @@index([status])
 }
 
-/// Site Audit crawl tracking (DataForSEO OnPage task ids).
+/// Site Audit crawl (DataForSEO OnPage task). Results are copied here because the provider only
+/// keeps them for a limited time.
 model SiteAuditCrawl {
   id          String   @id @default(cuid())
   target      String
   taskId      String?  @unique
+  source      String   @default("live") // live | mock
   status      String   @default("queued") // queued | crawling | finished | failed
   maxPages    Int      @default(100)
   createdAt   DateTime @default(now())
   finishedAt  DateTime?
-  summary     Json?
+  progress    Json?    // latest crawl_status from on_page/summary
+  summary     Json?    // normalized SiteAudit report once finished
   costUsd     Decimal  @default(0) @db.Decimal(12, 6)
+  error       String?
+
+  @@index([target, createdAt])
 }

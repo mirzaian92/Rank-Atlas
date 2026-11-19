@@ -181,6 +181,8 @@ export type PositionTracking = {
     searchVolume: number | null;
     tags: string[];
     history: (number | null)[];
+    /** At least one completed check in the range (position null + checked = not in the checked depth). */
+    checked?: boolean;
   }[];
 };
 
@@ -267,7 +269,6 @@ export type SiteAudit = {
   healthScore: number; // DataForSEO onpage_score (0–100)
   counts: { errors: number; warnings: number; notices: number };
   issues: AuditIssue[];
-  thematic: { label: string; score: number }[];
   statusCodes: { code: string; pages: number }[];
   pages: { url: string; statusCode: number; title: string | null; onpageScore: number; issues: number; loadTimeMs: number | null; words: number | null }[];
 };

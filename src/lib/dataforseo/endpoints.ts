@@ -56,6 +56,7 @@ export const ENDPOINTS = {
   // ---------- SERP API (Google Organic) ----------
   serpOrganicLiveAdvanced: { key: "serpOrganicLiveAdvanced", path: "/v3/serp/google/organic/live/advanced", method: "POST", api: "serp", ttl: 12 * HOUR, estimate: (p) => 0.002 * Math.ceil(Number(p.depth ?? 10) / 10), docs: `${DOCS}/serp/google/organic/live/advanced/` },
   serpOrganicTaskPost: { key: "serpOrganicTaskPost", path: "/v3/serp/google/organic/task_post", method: "POST", api: "serp", ttl: 0, estimate: (p) => 0.0006 * Math.ceil(Number(p.depth ?? 10) / 10), docs: `${DOCS}/serp/google/organic/task_post/` },
+  serpOrganicTaskGetAdvanced: { key: "serpOrganicTaskGetAdvanced", path: "/v3/serp/google/organic/task_get/advanced", method: "GET", api: "serp", ttl: 0, estimate: () => 0, free: true, docs: `${DOCS}/serp/google/organic/task_get/advanced/` },
   serpOrganicTasksReady: { key: "serpOrganicTasksReady", path: "/v3/serp/google/organic/tasks_ready", method: "GET", api: "serp", ttl: 0, estimate: () => 0, free: true, docs: `${DOCS}/serp/google/organic/tasks_ready/` },
 
   // ---------- Backlinks API ----------
