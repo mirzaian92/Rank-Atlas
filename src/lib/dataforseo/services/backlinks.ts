@@ -18,6 +18,9 @@ type Live<T> = { data: T; costUsd: number; cached: boolean; notes: string[]; end
 /** Shared with Domain Overview so both hit the same cache entry. */
 export const backlinksSummaryPayload = (target: string) => ({ target, include_subdomains: true, rank_scale: "one_hundred" });
 
+/** Shared with Historical Trends so the default 2-year view reuses this cache entry. */
+export const backlinksHistoryPayload = (target: string, months = 24) => ({ target, date_from: historyFrom(months), rank_scale: "one_hundred" });
+
 function historyFrom(months = 24) {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1)).toISOString().slice(0, 10);
@@ -33,7 +36,7 @@ export async function fetchBacklinkSummary(target: string): Promise<Live<ReturnT
   const tool: ToolId = "backlink-analytics";
   const [sum, hist] = await Promise.allSettled([
     dfsCall<DfsBacklinksSummary>("backlinksSummary", backlinksSummaryPayload(target), { tool }),
-    dfsCall<DfsBacklinksItemsResult<DfsBacklinksHistoryItem>>("backlinksHistory", { target, date_from: historyFrom(24), rank_scale: "one_hundred" }, { tool }),
+    dfsCall<DfsBacklinksItemsResult<DfsBacklinksHistoryItem>>("backlinksHistory", backlinksHistoryPayload(target), { tool }),
   ]);
   if (sum.status === "rejected") throw sum.reason;
   const notes: string[] = [];

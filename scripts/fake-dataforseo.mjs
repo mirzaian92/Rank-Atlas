@@ -8,7 +8,8 @@ const labs = (items, total = items.length) => [{ target: "fake.com", location_co
 
 const RESULTS = {
   "/v3/dataforseo_labs/google/domain_rank_overview/live": () => labs([{ se_type: "google", location_code: 2840, language_code: "en", metrics: { organic: metrics(1), paid: { etv: 1200, count: 85, estimated_paid_traffic_cost: 3400 } } }]),
-  "/v3/dataforseo_labs/google/historical_rank_overview/live": () => labs(Array.from({ length: 6 }, (_, i) => ({ se_type: "google", year: 2026, month: 6 + i, metrics: { organic: metrics(0.8 + i * 0.04), paid: { etv: 1000 + i * 40, count: 70 + i } } }))),
+  // Month 8 deliberately missing (gap handling).
+  "/v3/dataforseo_labs/google/historical_rank_overview/live": () => labs(Array.from({ length: 6 }, (_, i) => ({ se_type: "google", year: 2026, month: 6 + i, metrics: { organic: metrics(0.8 + i * 0.04), paid: { etv: 1000 + i * 40, count: 70 + i } } })).filter((x) => x.month !== 8)),
   // Paged: honours limit/offset; total_count stays 230 (the fake ignores filters but logs them).
   "/v3/dataforseo_labs/google/ranked_keywords/live": (task) => {
     const all = Array.from({ length: 230 }, (_, i) => ({
@@ -49,11 +50,12 @@ const RESULTS = {
     return labs(all.slice(off, off + lim), all.length);
   },
   "/v3/serp/google/organic/live/advanced": (task) => [{
-    keyword: task.keyword, se_results_count: 1830000, item_types: ["organic", "people_also_ask"],
+    keyword: task.keyword, se_results_count: 1830000, item_types: ["organic", "people_also_ask"], datetime: "2026-11-19 06:00:00 +00:00",
     items: [
       { type: "organic", rank_group: 1, rank_absolute: 1, domain: "alpha.com", title: `${task.keyword} — Alpha`, url: "https://alpha.com/x", description: "desc" },
       { type: "people_also_ask", rank_group: 1, rank_absolute: 2, items: [{ title: "q1" }] },
       { type: "organic", rank_group: 2, rank_absolute: 3, domain: "beta.io", title: `${task.keyword} guide`, url: "https://beta.io/guide", description: "desc" },
+      ...Array.from({ length: Math.max(0, (task.depth ?? 10) - 3) }, (_, i) => ({ type: "organic", rank_group: 3 + i, rank_absolute: 4 + i, domain: `site${i % 15}.com`, title: `Result ${i}`, url: `https://site${i % 15}.com/p${i}`, description: "d" })),
     ],
   }],
   // Each domain "ranks" for a deterministic keyword set; the fake computes intersections from those.
@@ -74,7 +76,8 @@ const RESULTS = {
     const all = Array.from({ length: 70 }, (_, i) => ({ anchor: i === 0 ? "" : `anchor text ${i}`, backlinks: 5000 - i * 60, referring_domains: 400 - i * 5, referring_links_attributes: { nofollow: i * 10 }, first_seen: "2024-03-01 00:00:00 +00:00" }));
     return [{ total_count: all.length, items: all.slice(task.offset ?? 0, (task.offset ?? 0) + (task.limit ?? 100)) }];
   },
-  "/v3/backlinks/history/live": () => [{ total_count: 6, items: Array.from({ length: 6 }, (_, i) => ({ date: `2026-${String(5 + i).padStart(2, "0")}-01 00:00:00 +00:00`, backlinks: 100000 + i * 4000, referring_domains: 1800 + i * 60, new_referring_domains: 90 + i, lost_referring_domains: 40 + i })) }],
+  // July deliberately missing (gap handling).
+  "/v3/backlinks/history/live": () => [{ total_count: 5, items: Array.from({ length: 6 }, (_, i) => ({ date: `2026-${String(5 + i).padStart(2, "0")}-01 00:00:00 +00:00`, backlinks: 100000 + i * 4000, referring_domains: 1800 + i * 60, new_referring_domains: 90 + i, lost_referring_domains: 40 + i })).filter((x) => !x.date.startsWith("2026-07")) }],
   "/v3/backlinks/backlinks/live": (task) => {
     const lost = task.backlinks_status_type === "lost";
     const all = Array.from({ length: lost ? 40 : 260 }, (_, i) => ({
@@ -91,6 +94,7 @@ const RESULTS = {
     }));
     return [{ total_count: all.length, items: all.slice(task.offset ?? 0, (task.offset ?? 0) + (task.limit ?? 100)) }];
   },
+  "/v3/backlinks/bulk_ranks/live": (task) => [{ items_count: (task.targets ?? []).length, items: (task.targets ?? []).map((t) => ({ target: t, rank: hash(t) % 100 })) }],
   "/v3/backlinks/bulk_spam_score/live": (task) => [{ items_count: (task.targets ?? []).length, items: (task.targets ?? []).map((t) => ({ target: t, spam_score: t.endsWith(".xyz") ? 85 : hash(t) % 40 })) }],
   // Referring-domain sets per target; computes all/partial intersections with exclusions.
   "/v3/backlinks/domain_intersection/live": (task) => {

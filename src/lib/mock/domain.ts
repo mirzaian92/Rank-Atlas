@@ -226,12 +226,14 @@ export function mockOrganicCompetitors(domain: string, ctx: MockCtx): OrganicCom
   return { domain, target: { organicKeywords: h.organicKeywords, organicEtv: h.organicEtv }, competitors: [...comps, ...generic] };
 }
 
-export function mockHistoricalTrends(domain: string, ctx: MockCtx): HistoricalTrends {
-  const history = mockHistory(domain, ctx, 36);
-  const r = rng(`${domain}|bl-history`);
-  const bl = walk(r, 36, r.logInt(5000, 5_000_000), 0.01, 0.04);
+export function mockHistoricalTrends(domain: string, ctx: MockCtx, span: "2y" | "5y" = "2y"): HistoricalTrends {
+  const months = span === "5y" ? 60 : 24;
+  const history = mockHistory(domain, ctx, months);
+  const r = rng(`${domain}|bl-history|${span}`);
+  const bl = walk(r, months, r.logInt(5000, 5_000_000), 0.01, 0.04);
   return {
     domain,
+    span,
     history,
     backlinkHistory: history.map((h, i) => ({ date: h.date, backlinks: bl[i], referringDomains: Math.round(bl[i] / 25) })),
     snapshots: [],

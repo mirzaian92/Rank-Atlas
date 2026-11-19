@@ -210,3 +210,6 @@ export type DfsBlIntersectionEntry = { domain?: string | null; target?: string |
 export type DfsBlIntersectionItem = { domain_intersection?: Record<string, DfsBlIntersectionEntry | null> | null } & Record<string, unknown>;
 
 export type DfsSpamScoreItem = { target: string; spam_score: number | null };
+
+/** backlinks/bulk_ranks item. VERIFY result shape. */
+export type DfsBulkRankItem = { target: string; rank: number | null };

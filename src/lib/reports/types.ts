@@ -272,11 +272,18 @@ export type SiteAudit = {
   pages: { url: string; statusCode: number; title: string | null; onpageScore: number; issues: number; loadTimeMs: number | null; words: number | null }[];
 };
 
+type Nullable<T> = { [K in keyof T]: T[K] | null };
+/** A month in a history series; `missing` months have null metrics (shown as gaps, never interpolated). */
+export type HistoryRow = { date: string; missing?: boolean } & Nullable<Omit<DomainHistoryPoint, "date">>;
+export type BacklinkHistoryRow = { date: string; missing?: boolean; backlinks: number | null; referringDomains: number | null };
+
 export type HistoricalTrends = {
   domain: string;
-  history: DomainHistoryPoint[];
-  backlinkHistory: { date: string; backlinks: number; referringDomains: number }[];
-  snapshots: { capturedAt: string; organicKeywords: number | null; organicEtv: number | null; source: string }[];
+  span: "2y" | "5y";
+  history: HistoryRow[];
+  backlinkHistory: BacklinkHistoryRow[];
+  /** Point-in-time values stored from earlier live Domain Overview lookups (this app's own record). */
+  snapshots: { capturedAt: string; organicKeywords: number | null; organicEtv: number | null; referringDomains: number | null; source: string }[];
 };
 
 export type SerpAnalysis = {

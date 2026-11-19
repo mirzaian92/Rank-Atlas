@@ -57,7 +57,7 @@ function expand(seed: string, r: ReturnType<typeof rng>, n: number, questionsOnl
   return [...out];
 }
 
-export function mockSerp(keyword: string, ctx: MockCtx, device = "desktop"): SerpResult[] {
+export function mockSerp(keyword: string, ctx: MockCtx, device = "desktop", depth = 10): SerpResult[] {
   const r = rng(`${keyword}|${ctx.locationCode}|${device}|serp`);
   const results: SerpResult[] = [];
   let rank = 1;
@@ -65,7 +65,7 @@ export function mockSerp(keyword: string, ctx: MockCtx, device = "desktop"): Ser
     const d = `${r.pick(COMPETITOR_STEMS)}${r.pick(TLDS)}`;
     results.push({ rank: rank++, type: "featured_snippet", title: `${keyword} — explained`, url: `https://${d}/guide/${keyword.replace(/\s+/g, "-")}`, domain: d, description: "Mock featured snippet text.", etv: null, domainRank: r.int(20, 90), backlinks: r.logInt(100, 2_000_000) });
   }
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < depth; i++) {
     const d = `${r.pick(COMPETITOR_STEMS)}${r.pick(["", "hq", "app"])}${r.pick(TLDS)}`;
     results.push({
       rank: rank++,
@@ -154,8 +154,8 @@ export function mockKeywordGap(domains: string[], ctx: MockCtx, sample = 200): K
   };
 }
 
-export function mockSerpAnalysis(keyword: string, ctx: MockCtx, device: string): SerpAnalysis {
-  const results = mockSerp(keyword, ctx, device);
+export function mockSerpAnalysis(keyword: string, ctx: MockCtx, device: string, depth = 10): SerpAnalysis {
+  const results = mockSerp(keyword, ctx, device, depth);
   const features = new Map<string, number>();
   results.forEach((x) => features.set(x.type, (features.get(x.type) ?? 0) + 1));
   return {

@@ -65,6 +65,7 @@ export const ENDPOINTS = {
   backlinksAnchors: { key: "backlinksAnchors", path: "/v3/backlinks/anchors/live", method: "POST", api: "backlinks", ttl: 1 * DAY, estimate: backlinks(), docs: `${DOCS}/backlinks/anchors/live/` },
   backlinksHistory: { key: "backlinksHistory", path: "/v3/backlinks/history/live", method: "POST", api: "backlinks", ttl: 7 * DAY, estimate: backlinks(), docs: `${DOCS}/backlinks/history/live/` },
   backlinksDomainIntersection: { key: "backlinksDomainIntersection", path: "/v3/backlinks/domain_intersection/live", method: "POST", api: "backlinks", ttl: 1 * DAY, estimate: backlinks(), docs: `${DOCS}/backlinks/domain_intersection/live/` },
+  backlinksBulkRanks: { key: "backlinksBulkRanks", path: "/v3/backlinks/bulk_ranks/live", method: "POST", api: "backlinks", ttl: 7 * DAY, estimate: (p) => 0.02 + 0.00003 * ((p.targets as unknown[])?.length ?? 1), docs: `${DOCS}/backlinks/bulk_ranks/live/` },
   backlinksBulkSpamScore: { key: "backlinksBulkSpamScore", path: "/v3/backlinks/bulk_spam_score/live", method: "POST", api: "backlinks", ttl: 7 * DAY, estimate: (p) => 0.02 + 0.00003 * ((p.targets as unknown[])?.length ?? 1), docs: `${DOCS}/backlinks/bulk_spam_score/live/` },
 
   // ---------- OnPage API ----------

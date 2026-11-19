@@ -11,6 +11,9 @@ import { fetchKeywordGap } from "@/lib/dataforseo/services/keyword-gap";
 import { gapQuerySchema } from "@/lib/reports/keyword-gap";
 import { applyAnchorQuery, applyBacklinkQuery, applyDomainQuery, blGapQuerySchema, blQuerySchema } from "@/lib/reports/backlink-query";
 import { AUDIT_SAMPLES } from "@/lib/reports/backlink-risk";
+import { fetchHistoricalTrends } from "@/lib/dataforseo/services/historical-trends";
+import { fetchSerpAnalysis } from "@/lib/dataforseo/services/serp-analysis";
+import { SERP_DEPTHS } from "@/lib/reports/serp";
 import { fetchBacklinkAudit, fetchBacklinkGap, fetchBacklinkSummary, fetchBacklinkTable } from "@/lib/dataforseo/services/backlinks";
 import { fetchKeywordDifficulty, fetchKeywordOverview } from "@/lib/dataforseo/services/keywords";
 import { fetchOrganicKeywords, fetchOrganicPages, fetchOrganicSummary } from "@/lib/dataforseo/services/organic-research";
@@ -116,10 +119,21 @@ export const REPORTS: Record<ToolId, Handler<unknown>> = {
     notes: ["Risk labels are heuristics based on spam score, TLD and link patterns — not a Google penalty prediction. Review before disavowing."],
   }),
   "site-audit": h({ schema: q(domainSchema), mock: (p) => mockSiteAudit(p.q) }),
-  "historical-trends": h({ schema: q(domainSchema), mock: (p) => mockHistoricalTrends(p.q, p), notes: [ETV_NOTE] }),
+  "historical-trends": h({
+    schema: q(domainSchema).extend({ span: z.enum(["2y", "5y"]).default("2y") }),
+    mock: (p) => mockHistoricalTrends(p.q, p, p.span),
+    live: (p) => fetchHistoricalTrends({ domain: p.q, locationCode: p.locationCode, languageCode: p.languageCode }, p.span),
+    notes: [ETV_NOTE],
+  }),
   "serp-analysis": h({
-    schema: q(keywordSchema).extend({ device: z.enum(["desktop", "mobile"]).default("desktop") }),
-    mock: (p) => mockSerpAnalysis(p.q, p, p.device),
+    schema: q(keywordSchema).extend({
+      device: z.enum(["desktop", "mobile"]).default("desktop"),
+      depth: z.coerce.number().int().refine((n) => (SERP_DEPTHS as readonly number[]).includes(n), "Invalid depth").default(10),
+      enrich: z.enum(["0", "1"]).default("0").transform((v) => v === "1"),
+      fresh: z.enum(["0", "1"]).default("0").transform((v) => v === "1"),
+    }),
+    mock: (p) => mockSerpAnalysis(p.q, p, p.device, p.depth),
+    live: (p) => fetchSerpAnalysis(p.q, p, p),
   }),
 };
 

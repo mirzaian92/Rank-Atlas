@@ -142,15 +142,15 @@ export const TOOLS: ToolDef[] = [
     id: "historical-trends", label: "Historical Domain Trends", section: "site", href: "/site/historical-trends",
     icon: History, query: "domain", placeholder: "Enter domain",
     description: "Month-by-month organic visibility history from the provider's historical data and stored snapshots.",
-    order: 12, integration: "mock",
+    order: 12, integration: "ready",
     endpoints: ["POST /v3/dataforseo_labs/google/historical_rank_overview/live", "POST /v3/backlinks/history/live"],
   },
   {
     id: "serp-analysis", label: "SERP Analysis", section: "site", href: "/site/serp-analysis",
     icon: ListOrdered, query: "keyword", placeholder: "Enter keyword",
     description: "Live Google results page for a keyword: organic results, SERP features and ranking domains.",
-    order: 13, integration: "mock",
-    endpoints: ["POST /v3/serp/google/organic/live/advanced"],
+    order: 13, integration: "ready",
+    endpoints: ["POST /v3/serp/google/organic/live/advanced", "POST /v3/backlinks/bulk_ranks/live (optional)"],
   },
 ];
 

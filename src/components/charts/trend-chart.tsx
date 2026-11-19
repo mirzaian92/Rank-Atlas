@@ -35,6 +35,9 @@ export function TrendChart<T extends Record<string, unknown>>({
     return n;
   });
   const showLegend = legend ?? colored.length > 1;
+  // With gaps (null months), a lone month between two gaps has no line segment — show point markers.
+  const hasGaps = data.some((row) => colored.some((s) => row[s.key] == null));
+  const dot = (color: string) => (hasGaps ? { r: 2.5, strokeWidth: 0, fill: color } : false);
   const fmtX = (v: string) => fmtDate(v, dateFormat);
   const common = {
     data,
@@ -65,14 +68,14 @@ export function TrendChart<T extends Record<string, unknown>>({
               </defs>
               {axes}
               {visible.map((s) => (
-                <Area key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} strokeWidth={2} fill={`url(#g-${s.key})`} stackId={stacked ? "1" : undefined} dot={false} activeDot={{ r: 4, strokeWidth: 2, stroke: "#fff" }} isAnimationActive={false} />
+                <Area key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} strokeWidth={2} fill={`url(#g-${s.key})`} stackId={stacked ? "1" : undefined} dot={dot(s.color)} activeDot={{ r: 4, strokeWidth: 2, stroke: "#fff" }} isAnimationActive={false} />
               ))}
             </AreaChart>
           ) : (
             <LineChart {...common}>
               {axes}
               {visible.map((s) => (
-                <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2, stroke: "#fff" }} isAnimationActive={false} />
+                <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} strokeWidth={2} dot={dot(s.color)} activeDot={{ r: 4, strokeWidth: 2, stroke: "#fff" }} isAnimationActive={false} />
               ))}
             </LineChart>
           )}

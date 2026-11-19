@@ -15,8 +15,8 @@ Integrate **one tool at a time**, in this order. A tool goes live only after eve
 | 9 | Backlink Gap | **Ready** — one domain_intersection request per tab page; verified against fake ground truth |
 | 10 | Backlink Audit | **Ready** — referring_domains sample + bulk_spam_score + local risk rules |
 | 11 | Site Audit | Mock |
-| 12 | Historical Domain Trends | Mock |
-| 13 | SERP Analysis | Mock |
+| 12 | Historical Domain Trends | **Ready** — reuses Domain Overview / Backlink Analytics history payloads; gaps preserved |
+| 13 | SERP Analysis | **Ready** — device/depth, optional Domain Rank, re-check bypasses cache |
 
 > ⚠️ `docs.dataforseo.com` was not reachable from the build environment. Endpoint paths and fields below
 > were written from DataForSEO v3 knowledge. Items marked **VERIFY** must be checked against the official
@@ -427,6 +427,53 @@ Two or more risk signals make a domain toxic; one makes it suspicious.
 
 ---
 
+## Integration #12 — Historical Domain Trends
+
+| Source | Payload | Notes |
+|---|---|---|
+| `dataforseo_labs/google/historical_rank_overview/live` | `historyPayload(target, months)` | Same builder as Domain Overview and Organic Research |
+| `backlinks/history/live` | `backlinksHistoryPayload(target, months)` | Same builder as Backlink Analytics |
+| `DomainSnapshot` table | — | Rows written by every live Domain Overview lookup (free) |
+
+**Spans:**
+
+| Span | Months | Cost |
+|---|---|---|
+| 2 years (default) | 24 | Identical payloads to the other tools, so usually **$0** (cached) |
+| 5 years | 60 | Two new requests, ≈ $0.04 |
+
+**Gaps:** `fillMonthGaps` (`src/lib/reports/history.ts`) inserts a `missing: true` row with null metrics for every month the provider didn't return. Charts show a break, with point markers whenever a series has gaps; the table shows "no data"; a note counts the missing months. Cards compare the first and last months *that have data*. Nothing is interpolated.
+
+**VERIFY:** how far back `historical_rank_overview` and `backlinks/history` return data (60-month requests may come back shorter, which is fine — the series simply starts later).
+
+---
+
+## Integration #13 — SERP Analysis
+
+| Request | Payload | Cost |
+|---|---|---|
+| `serp/google/organic/live/advanced` | `keyword`, location, language, `device` (desktop/mobile), `depth` (10/20/50/100) | ≈ $0.002 per 10 results |
+| Optional `backlinks/bulk_ranks/live` | `targets` = unique result domains, `rank_scale: "one_hundred"` | ≈ $0.02 |
+
+The optional request fills the Domain Rank column and the "Avg. Domain Rank" card. It's off by default and controlled by the "Domain Rank" switch.
+
+The cost estimate (`estimateSerpCost` in `src/lib/reports/serp.ts`) is shown next to the controls.
+
+**Caching:** SERPs are cached for 12 hours, and the page notes how long ago Google was checked. **Re-check now** makes one request with `fresh=1`, which bypasses the cache but stores the new result, then reloads the normal view from that cache. Reloading the page afterwards costs nothing.
+
+**VERIFY:**
+- SERP pricing per depth.
+- `bulk_ranks` result shape (`items[].target`, `rank`).
+- SERP `datetime` field format.
+
+### Go-live checklist (#12, #13)
+
+- [ ] One real domain: the 2-year trends view costs $0 after Domain Overview + Backlink Analytics; months match the raw JSON.
+- [ ] One real keyword: desktop vs mobile differ as expected; Domain Rank values look right; re-check shows a new "checked" time.
+- [ ] Add `historical-trends,serp-analysis` to `DATAFORSEO_LIVE_TOOLS`.
+
+---
+
 ## Usage meter
 
 The header shows today's DataForSEO spend, with a bar against the daily limit. It turns amber at 80% of a limit and red at 100%, with an icon and label as well as colour. Click it to see:
@@ -449,5 +496,3 @@ The meter refreshes every 20 s and immediately after any report that touched the
 | Keyword Magic Tool | `labs/google/keyword_suggestions/live` (phrase), `related_keywords/live` (related), `keyword_ideas/live` (broad) | Map the UI modes to these endpoints; build questions with a `filters` regex or from `keyword_suggestions`. |
 | Position Tracking | `serp/google/organic/task_post` → `tasks_ready` → `task_get/advanced/{id}` | Standard queue, which is cheaper. Daily job writes `RankSnapshot`. History comes **only** from stored snapshots. |
 | Site Audit | `on_page/task_post` → `on_page/summary/{id}` → `on_page/pages`, `duplicate_tags`, `links` | Asynchronous: store the task id in `SiteAuditCrawl` and poll. Show a cost estimate before starting (≈ $0.000125 per page). |
-| Historical Trends | `labs/google/historical_rank_overview/live`, `backlinks/history/live` + `DomainSnapshot` | Gaps stay gaps; nothing is interpolated. |
-| SERP Analysis | `serp/google/organic/live/advanced` (`device`, `depth`) | 12 h cache. |
