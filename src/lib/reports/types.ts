@@ -208,7 +208,8 @@ export type ReferringDomainRow = {
   country: string | null;
 };
 
-export type BacklinkAnalytics = {
+/** Backlink Analytics summary view (cards + charts). Tables are separate paged views. */
+export type BacklinkSummary = {
   target: string;
   summary: {
     domainRank: number | null;
@@ -221,24 +222,35 @@ export type BacklinkAnalytics = {
     brokenBacklinks: number;
     spamScore: number | null;
   };
+  /** Monthly history from the provider (backlinks/history) — never interpolated. */
   history: { date: string; backlinks: number; referringDomains: number; newReferringDomains: number; lostReferringDomains: number }[];
-  backlinks: BacklinkRow[];
-  referringDomains: ReferringDomainRow[];
-  anchors: { anchor: string; backlinks: number; referringDomains: number; dofollowShare: number }[];
   linkTypes: { type: string; count: number }[];
   tlds: { tld: string; referringDomains: number }[];
 };
 
-export type BacklinkGap = {
+export type AnchorRow = { anchor: string; backlinks: number; referringDomains: number; dofollowShare: number | null; firstSeen: string | null };
+
+export type BacklinkGapTab = "best" | "untapped" | "shared" | "unique";
+/** One server-paged tab of Backlink Gap. backlinks[i] = links from the referring domain to domains[i] (0 = excluded / none). */
+export type BacklinkGapPage = {
   domains: string[];
-  rows: { domain: string; domainRank: number | null; backlinks: (number | null)[]; category: "best" | "weak" | "shared" | "unique" }[];
+  tab: BacklinkGapTab;
+  total: number;
+  page: number;
+  size: number;
+  rows: { domain: string; domainRank: number | null; backlinks: (number | null)[] }[];
 };
 
+export type RiskLevel = "toxic" | "suspicious" | "healthy";
 export type BacklinkAudit = {
   target: string;
+  /** Referring domains analysed (top N by backlinks). */
+  sampleSize: number;
+  /** All referring domains the target has, if known. */
+  totalReferringDomains: number | null;
   summary: { referringDomains: number; toxic: number; suspicious: number; healthy: number; avgSpamScore: number };
   distribution: { range: string; count: number }[];
-  domains: (ReferringDomainRow & { risk: "toxic" | "suspicious" | "healthy"; reasons: string[] })[];
+  domains: (ReferringDomainRow & { risk: RiskLevel; reasons: string[] })[];
 };
 
 export type AuditIssue = {

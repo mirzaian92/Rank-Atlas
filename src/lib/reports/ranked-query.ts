@@ -62,7 +62,7 @@ export const rankedQuerySchema = z
 export type RankedQuery = z.infer<typeof rankedQuerySchema>;
 
 /** Client: table state → URL params (only non-default values). */
-export function rankedQueryToParams(q: Partial<Record<keyof RankedQuery, unknown>>): Record<string, string | undefined> {
+export function rankedQueryToParams(q: Record<string, unknown>): Record<string, string | undefined> {
   const out: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(q)) {
     if (v === undefined || v === null || v === "") continue;

@@ -14,7 +14,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { download, exportFilename } from "@/lib/client/export";
-import { fmtNumber } from "@/lib/utils";
+import { cn, fmtCurrency, fmtNumber } from "@/lib/utils";
+import { AUDIT_SAMPLES, estimateAuditCost } from "@/lib/reports/backlink-risk";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useSettingsSummary } from "@/components/layout/app-header";
+import { useSearchState } from "@/lib/client/use-search-state";
 
 type Row = BacklinkAudit["domains"][number];
 
@@ -32,8 +36,27 @@ export default function Page() {
 }
 
 function Inner() {
+  const { get, setParams } = useSearchState();
+  const sample = (AUDIT_SAMPLES as readonly number[]).includes(Number(get("sample"))) ? Number(get("sample")) : 500;
+  const { data: settings } = useSettingsSummary();
+  const live = Boolean(settings?.live.enabled && settings.credentials.configured && settings.live.tools.find((t) => t.id === "backlink-audit")?.listed);
   return (
-    <ReportView<BacklinkAudit> tool="backlink-audit" isEmpty={(d) => d.domains.length === 0}>
+    <ReportView<BacklinkAudit>
+      tool="backlink-audit"
+      extraParams={{ sample: String(sample) }}
+      isEmpty={(d) => d.domains.length === 0}
+      actions={
+        <div className="flex items-center gap-2">
+          <Select value={String(sample)} onValueChange={(v) => setParams({ sample: v === "500" ? null : v }, { replace: true })}>
+            <SelectTrigger className="h-8 w-[200px] text-[13px]" aria-label="Domains to analyse"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {AUDIT_SAMPLES.map((n) => <SelectItem key={n} value={String(n)}>Top {n.toLocaleString()} referring domains</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {settings && <span className={cn("text-[12px] text-ink-3")} title="referring_domains + bulk_spam_score; cached results cost nothing">{live ? `≈ ${fmtCurrency(estimateAuditCost(sample), 2)} per audit` : "Mock data · $0"}</span>}
+        </div>
+      }
+    >
       {(d, meta) => {
         const mock = meta.source === "mock";
         const s = d.summary;
@@ -44,7 +67,7 @@ function Inner() {
         return (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-              <MetricCard mock={mock} label="Referring domains analysed" value={fmtNumber(s.referringDomains)} />
+              <MetricCard mock={mock} label="Referring domains analysed" value={fmtNumber(s.referringDomains)} sub={d.totalReferringDomains != null ? `of ${fmtNumber(d.totalReferringDomains)} total (top by backlinks)` : undefined} />
               <MetricCard mock={mock} label="Toxic" value={fmtNumber(s.toxic)} accent={STATUS.critical} />
               <MetricCard mock={mock} label="Suspicious" value={fmtNumber(s.suspicious)} accent={STATUS.warning} />
               <MetricCard mock={mock} label="Healthy" value={fmtNumber(s.healthy)} accent={STATUS.good} />

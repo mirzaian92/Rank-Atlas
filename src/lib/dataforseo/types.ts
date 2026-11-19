@@ -159,3 +159,54 @@ export type DfsDomainIntersectionItem = {
   first_domain_serp_element?: DfsIntersectionSerpElement | null;
   second_domain_serp_element?: DfsIntersectionSerpElement | null;
 };
+
+// ---------- Backlinks API ----------
+/** Items-list result wrapper used by backlinks/backlinks, referring_domains, anchors, history, domain_intersection. */
+export type DfsBacklinksItemsResult<I> = { target?: string; total_count: number | null; items_count?: number; items: I[] | null };
+
+export type DfsBacklinkItem = {
+  type?: string;
+  domain_from?: string;
+  url_from: string;
+  url_to: string;
+  page_from_title?: string | null;
+  domain_from_rank?: number | null;
+  item_type?: string | null; // anchor | image | redirect | canonical | ...
+  dofollow?: boolean | null;
+  anchor?: string | null;
+  first_seen?: string | null;
+  last_seen?: string | null;
+  is_new?: boolean | null;
+  is_lost?: boolean | null;
+};
+
+export type DfsReferringDomainItem = {
+  domain: string;
+  rank?: number | null;
+  backlinks?: number | null;
+  first_seen?: string | null;
+  backlinks_spam_score?: number | null;
+  referring_links_attributes?: Record<string, number> | null;
+};
+
+export type DfsAnchorItem = {
+  anchor: string;
+  backlinks?: number | null;
+  referring_domains?: number | null;
+  first_seen?: string | null;
+  referring_links_attributes?: Record<string, number> | null;
+};
+
+export type DfsBacklinksHistoryItem = {
+  date: string; // "2026-10-01 00:00:00 +00:00"
+  backlinks?: number | null;
+  referring_domains?: number | null;
+  new_referring_domains?: number | null;
+  lost_referring_domains?: number | null;
+};
+
+/** domain_intersection item: per-target stats keyed "1".."n". VERIFY exact wrapper key. */
+export type DfsBlIntersectionEntry = { domain?: string | null; target?: string | null; rank?: number | null; backlinks?: number | null };
+export type DfsBlIntersectionItem = { domain_intersection?: Record<string, DfsBlIntersectionEntry | null> | null } & Record<string, unknown>;
+
+export type DfsSpamScoreItem = { target: string; spam_score: number | null };

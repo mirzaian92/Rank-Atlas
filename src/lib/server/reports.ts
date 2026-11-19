@@ -9,6 +9,9 @@ import { fetchKeywordMagic } from "@/lib/dataforseo/services/keyword-magic";
 import { fetchOrganicCompetitors } from "@/lib/dataforseo/services/competitors";
 import { fetchKeywordGap } from "@/lib/dataforseo/services/keyword-gap";
 import { gapQuerySchema } from "@/lib/reports/keyword-gap";
+import { applyAnchorQuery, applyBacklinkQuery, applyDomainQuery, blGapQuerySchema, blQuerySchema } from "@/lib/reports/backlink-query";
+import { AUDIT_SAMPLES } from "@/lib/reports/backlink-risk";
+import { fetchBacklinkAudit, fetchBacklinkGap, fetchBacklinkSummary, fetchBacklinkTable } from "@/lib/dataforseo/services/backlinks";
 import { fetchKeywordDifficulty, fetchKeywordOverview } from "@/lib/dataforseo/services/keywords";
 import { fetchOrganicKeywords, fetchOrganicPages, fetchOrganicSummary } from "@/lib/dataforseo/services/organic-research";
 import { mockKeywordDifficulty, mockKeywordGap, mockKeywordMagicPool, mockKeywordOverview, mockSerpAnalysis } from "@/lib/mock/keywords";
@@ -88,9 +91,30 @@ export const REPORTS: Record<ToolId, Handler<unknown>> = {
     live: (p) => fetchKeywordGap(p.q, p, p.sample),
   }),
   "position-tracking": h({ schema: q(domainSchema), mock: (p) => mockPositionTracking(p.q, p), notes: ["Position history comes only from stored daily SERP checks — no backfilled history."] }),
-  "backlink-analytics": h({ schema: q(domainSchema), mock: (p) => mockBacklinkAnalytics(p.q, p) }),
-  "backlink-gap": h({ schema: q(domainListSchema), mock: (p) => mockBacklinkGap(p.q) }),
-  "backlink-audit": h({ schema: q(domainSchema), mock: (p) => mockBacklinkAudit(p.q), notes: ["Risk labels are heuristics based on spam score and link attributes; review before disavowing."] }),
+  "backlink-analytics": h({
+    schema: q(domainSchema).and(blQuerySchema),
+    mock: (p) => {
+      const m = mockBacklinkAnalytics(p.q, p);
+      const page = <T,>(r: { rows: T[]; total: number }) => ({ domain: p.q, total: r.total, page: p.page, size: p.size, rows: r.rows });
+      if (p.view === "backlinks") return page(applyBacklinkQuery(m.backlinks, p));
+      if (p.view === "domains") return page(applyDomainQuery(m.referringDomains, p));
+      if (p.view === "anchors") return page(applyAnchorQuery(m.anchors, p));
+      const { backlinks: _b, referringDomains: _d, anchors: _a, ...summary } = m;
+      return summary;
+    },
+    live: (p) => (p.view === "summary" ? fetchBacklinkSummary(p.q) : fetchBacklinkTable(p.q, p)),
+  }),
+  "backlink-gap": h({
+    schema: q(domainListSchema).and(blGapQuerySchema),
+    mock: (p) => mockBacklinkGap(p.q, p),
+    live: (p) => fetchBacklinkGap(p.q, p),
+  }),
+  "backlink-audit": h({
+    schema: q(domainSchema).extend({ sample: z.coerce.number().int().refine((n) => (AUDIT_SAMPLES as readonly number[]).includes(n), "Invalid sample size").default(500) }),
+    mock: (p) => mockBacklinkAudit(p.q, p.sample),
+    live: (p) => fetchBacklinkAudit(p.q, p.sample),
+    notes: ["Risk labels are heuristics based on spam score, TLD and link patterns — not a Google penalty prediction. Review before disavowing."],
+  }),
   "site-audit": h({ schema: q(domainSchema), mock: (p) => mockSiteAudit(p.q) }),
   "historical-trends": h({ schema: q(domainSchema), mock: (p) => mockHistoricalTrends(p.q, p), notes: [ETV_NOTE] }),
   "serp-analysis": h({

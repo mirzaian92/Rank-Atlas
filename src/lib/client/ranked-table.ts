@@ -3,6 +3,8 @@ import type { RemoteState } from "@/components/data/data-table";
 import type { RangeValue } from "@/components/data/filters";
 import { RANKED_SORTS, rankedQueryToParams, type RankedSort } from "@/lib/reports/ranked-query";
 import { KEYWORD_SORTS, type KeywordSort } from "@/lib/reports/keyword-query";
+import { BL_SORTS } from "@/lib/reports/backlink-query";
+
 
 
 /** Column ids that sort to a different server field. */
@@ -66,5 +68,36 @@ export function keywordParamsFromTable(s: RemoteState): Record<string, string | 
     kdMin: range("kd").min, kdMax: range("kd").max,
     cpcMin: range("cpc").min, cpcMax: range("cpc").max,
     intent: (f.intent as string[] | undefined) ?? [],
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Backlink Analytics tables
+// ---------------------------------------------------------------------------
+
+export type BlTableView = keyof typeof BL_SORTS;
+
+export const isBlSortable = (view: BlTableView) => (columnId: string) => (BL_SORTS[view] as readonly string[]).includes(columnId);
+
+/** Filter ids: status, attr, type, dr, spam (see the Backlink Analytics page). */
+export function blParamsFromTable(view: BlTableView, s: RemoteState): Record<string, string | undefined> {
+  const f = s.filters;
+  const multi = (id: string) => (f[id] as string[] | undefined) ?? [];
+  const range = (id: string) => (f[id] as RangeValue | undefined) ?? {};
+  const col = s.sorting[0];
+  const status = multi("status");
+  const attr = multi("attr");
+  return rankedQueryToParams({
+    view,
+    page: s.pageIndex + 1,
+    size: s.pageSize,
+    sort: col && isBlSortable(view)(col.id) ? col.id : undefined,
+    dir: col ? (col.desc ? "desc" : "asc") : "desc",
+    search: s.search || undefined,
+    status: status.includes("lost") ? "lost" : status.includes("new") ? "new" : undefined,
+    attr: attr.length === 1 ? attr[0] : undefined,
+    type: multi("type"),
+    drMin: range("dr").min, drMax: range("dr").max,
+    spamMax: range("spam").max,
   });
 }

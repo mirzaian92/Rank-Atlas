@@ -70,7 +70,40 @@ const RESULTS = {
     return labs(items.slice(0, task.limit ?? 100), items.length);
   },
   "/v3/backlinks/summary/live": () => [{ target: "fake.com", rank: 48, backlinks: 120000, backlinks_spam_score: 4, broken_backlinks: 30, referring_domains: 2100, referring_domains_nofollow: 300, referring_main_domains: 1900, referring_ips: 1700, referring_subnets: 1400, referring_links_tld: { com: 1200, org: 300 }, referring_links_types: { anchor: 110000 }, referring_links_attributes: { nofollow: 20000 } }],
-  "/v3/backlinks/anchors/live": () => [{ total_count: 1, items: [{ anchor: "fake", backlinks: 5000, referring_domains: 400 }] }],
+  "/v3/backlinks/anchors/live": (task) => {
+    const all = Array.from({ length: 70 }, (_, i) => ({ anchor: i === 0 ? "" : `anchor text ${i}`, backlinks: 5000 - i * 60, referring_domains: 400 - i * 5, referring_links_attributes: { nofollow: i * 10 }, first_seen: "2024-03-01 00:00:00 +00:00" }));
+    return [{ total_count: all.length, items: all.slice(task.offset ?? 0, (task.offset ?? 0) + (task.limit ?? 100)) }];
+  },
+  "/v3/backlinks/history/live": () => [{ total_count: 6, items: Array.from({ length: 6 }, (_, i) => ({ date: `2026-${String(5 + i).padStart(2, "0")}-01 00:00:00 +00:00`, backlinks: 100000 + i * 4000, referring_domains: 1800 + i * 60, new_referring_domains: 90 + i, lost_referring_domains: 40 + i })) }],
+  "/v3/backlinks/backlinks/live": (task) => {
+    const lost = task.backlinks_status_type === "lost";
+    const all = Array.from({ length: lost ? 40 : 260 }, (_, i) => ({
+      type: "backlink", domain_from: `site${i}.com`, url_from: `https://site${i}.com/post/${i}`, url_to: `https://${task.target}/`, page_from_title: `Post ${i}`,
+      domain_from_rank: 90 - (i % 90), item_type: i % 9 === 0 ? "image" : "anchor", dofollow: i % 4 !== 0, anchor: `anchor ${i}`,
+      first_seen: "2025-01-15 10:00:00 +00:00", last_seen: "2026-11-10 08:00:00 +00:00", is_new: i % 11 === 0, is_lost: lost,
+    }));
+    return [{ total_count: all.length, items: all.slice(task.offset ?? 0, (task.offset ?? 0) + (task.limit ?? 100)) }];
+  },
+  "/v3/backlinks/referring_domains/live": (task) => {
+    const all = Array.from({ length: 1400 }, (_, i) => ({
+      type: "backlinks_referring_domain", domain: i % 50 === 7 ? `spammy${i}.xyz` : `ref${i}.com`, rank: 90 - (i % 90), backlinks: 3000 - i * 2,
+      first_seen: "2024-06-01 00:00:00 +00:00", backlinks_spam_score: (i * 13) % 100, referring_links_attributes: { nofollow: i % 3 },
+    }));
+    return [{ total_count: all.length, items: all.slice(task.offset ?? 0, (task.offset ?? 0) + (task.limit ?? 100)) }];
+  },
+  "/v3/backlinks/bulk_spam_score/live": (task) => [{ items_count: (task.targets ?? []).length, items: (task.targets ?? []).map((t) => ({ target: t, spam_score: t.endsWith(".xyz") ? 85 : hash(t) % 40 })) }],
+  // Referring-domain sets per target; computes all/partial intersections with exclusions.
+  "/v3/backlinks/domain_intersection/live": (task) => {
+    const refs = (d) => new Set(Array.from({ length: 150 }, (_, i) => `ref${(hash(d) + i * 3) % 400}.org`));
+    const keys = Object.keys(task.targets ?? {});
+    const sets = keys.map((k) => refs(task.targets[k]));
+    const excluded = (task.exclude_targets ?? []).map(refs);
+    const universe = new Set(sets.flatMap((x) => [...x]));
+    const ok = [...universe].filter((r) => (task.intersection_mode === "partial" ? sets.some((s) => s.has(r)) : sets.every((s) => s.has(r))) && !excluded.some((s) => s.has(r)));
+    const items = ok.map((r) => ({ domain_intersection: Object.fromEntries(keys.map((k, i) => [k, sets[i].has(r) ? { type: "backlinks_domain_intersection", domain: r, rank: hash(r) % 100, backlinks: 1 + (hash(r + k) % 50) } : null])) }))
+      .sort((a, b) => Object.values(b.domain_intersection).find(Boolean).rank - Object.values(a.domain_intersection).find(Boolean).rank);
+    return [{ total_count: items.length, items: items.slice(task.offset ?? 0, (task.offset ?? 0) + (task.limit ?? 100)) }];
+  },
   "/v3/appendix/user_data": () => [{ login: "fake@example.com", timezone: "UTC", money: { total: 50, balance: 42.5 } }],
 };
 

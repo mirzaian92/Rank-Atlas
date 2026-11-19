@@ -10,6 +10,7 @@
 import type { RankedQuery, RankedSort } from "@/lib/reports/ranked-query";
 import type { KeywordQuery, KeywordSort } from "@/lib/reports/keyword-query";
 import { QUESTION_REGEX } from "@/lib/reports/keyword-query";
+import type { BlGapQuery, BlQuery } from "@/lib/reports/backlink-query";
 
 
 export type DfsCondition = [string, string, unknown];
@@ -137,4 +138,89 @@ export function keywordQueryToDfs(q: KeywordQuery, prefix = ""): { filters?: Dfs
   const order_by = [`${sortField[q.sort]},${q.dir}`];
   if (q.sort !== "searchVolume") order_by.push(`${f.searchVolume},desc`);
   return { ...(filters ? { filters } : {}), order_by, limit: q.size, offset: (q.page - 1) * q.size };
+}
+
+// ---------------------------------------------------------------------------
+// Backlinks API (backlinks / referring_domains / anchors / domain_intersection)
+// VERIFY field names against https://docs.dataforseo.com/v3/backlinks/ — notably item_type,
+// domain_from_rank, dofollow, is_new, backlinks_spam_score, and the "1.rank" style fields of
+// domain_intersection.
+// ---------------------------------------------------------------------------
+
+const BL_SORT_FIELD: Record<string, Record<string, string>> = {
+  backlinks: { domainRank: "domain_from_rank", firstSeen: "first_seen", lastSeen: "last_seen" },
+  domains: { domainRank: "rank", backlinks: "backlinks", firstSeen: "first_seen" },
+  anchors: { backlinks: "backlinks", referringDomains: "referring_domains" },
+};
+
+/** Payload fragment for a Backlink Analytics table page. All rank values on the 0–100 scale. */
+export function blQueryToDfs(q: BlQuery): Record<string, unknown> {
+  if (q.view === "summary") return {};
+  const view = q.view;
+  const parts: (DfsCondition | DfsFilter)[] = [];
+  const like = (field: string) => [field, "like", `%${likeEscape(q.search!)}%`] as DfsCondition;
+  const extra: Record<string, unknown> = {};
+
+  if (view === "backlinks") {
+    extra.mode = "as_is";
+    extra.backlinks_status_type = q.status === "lost" ? "lost" : "live";
+    if (q.status === "new") parts.push(["is_new", "=", true]);
+    if (q.attr) parts.push(["dofollow", "=", q.attr === "follow"]);
+    if (q.type.length) parts.push(["item_type", "in", q.type]);
+    parts.push(...range("domain_from_rank", q.drMin, q.drMax));
+    if (q.search) parts.push([like("url_from"), "or", like("anchor")]);
+  } else if (view === "domains") {
+    parts.push(...range("rank", q.drMin, q.drMax));
+    if (q.spamMax !== undefined) parts.push(["backlinks_spam_score", "<=", q.spamMax]);
+    if (q.search) parts.push(like("domain"));
+  } else if (q.search) {
+    parts.push(like("anchor"));
+  }
+
+  const filters = parts.length ? joinAnd(parts) : undefined;
+  if (filters && countConditions(filters) > MAX_FILTER_CONDITIONS) {
+    throw new FilterLimitError(`Too many filter conditions (${countConditions(filters)}). DataForSEO allows up to ${MAX_FILTER_CONDITIONS}.`);
+  }
+  const sortKey = q.sort ?? (view === "anchors" ? "backlinks" : "domainRank");
+  return {
+    ...extra,
+    ...(filters ? { filters } : {}),
+    order_by: [`${BL_SORT_FIELD[view][sortKey]},${q.dir}`],
+    limit: q.size,
+    offset: (q.page - 1) * q.size,
+    rank_scale: "one_hundred",
+  };
+}
+
+/**
+ * Backlink Gap tab → domain_intersection payload. domains[0] is "you".
+ * `targets` is an object keyed "1".."n"; the returned `targetIndex` maps each key back to its
+ * column in `domains`.
+ */
+export function blGapToDfs(domains: string[], q: BlGapQuery) {
+  const [you, ...comps] = domains;
+  let targetDomains: string[];
+  let exclude: string[];
+  let mode: "all" | "partial";
+  switch (q.tab) {
+    case "best": targetDomains = comps; exclude = [you]; mode = "all"; break;
+    case "untapped": targetDomains = comps; exclude = [you]; mode = "partial"; break;
+    case "shared": targetDomains = domains; exclude = []; mode = "all"; break;
+    case "unique": targetDomains = [you]; exclude = comps; mode = "all"; break;
+  }
+  const targets = Object.fromEntries(targetDomains.map((d, i) => [String(i + 1), d]));
+  const targetIndex = Object.fromEntries(targetDomains.map((d, i) => [String(i + 1), domains.indexOf(d)]));
+  return {
+    payload: {
+      targets,
+      ...(exclude.length ? { exclude_targets: exclude } : {}),
+      intersection_mode: mode,
+      order_by: ["1.rank,desc"],
+      ...(q.drMin !== undefined ? { filters: [["1.rank", ">=", q.drMin]] } : {}),
+      limit: q.size,
+      offset: (q.page - 1) * q.size,
+      rank_scale: "one_hundred",
+    },
+    targetIndex,
+  };
 }

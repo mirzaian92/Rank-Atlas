@@ -1,7 +1,9 @@
 /** MOCK generators for backlink, site audit and position tracking reports. Placeholder data only. */
 import type {
-  AuditIssue, BacklinkAnalytics, BacklinkAudit, BacklinkGap, BacklinkRow, PositionTracking, ReferringDomainRow, SiteAudit,
+  AnchorRow, AuditIssue, BacklinkAudit, BacklinkGapPage, BacklinkRow, BacklinkSummary, PositionTracking, ReferringDomainRow, SiteAudit,
 } from "@/lib/reports/types";
+import { assessRisk, spamDistribution } from "@/lib/reports/backlink-risk";
+import type { BlGapQuery } from "@/lib/reports/backlink-query";
 import { lastDays, lastMonths, rng, walk } from "./rng";
 import { ANCHORS, COMPETITOR_STEMS, PAGE_PATHS, TLDS, TOPICS, domainStem } from "./words";
 import type { MockCtx } from "./domain";
@@ -31,15 +33,18 @@ function refDomains(target: string, n: number, salt = ""): ReferringDomainRow[] 
   return rows.sort((a, b) => (b.domainRank ?? 0) - (a.domainRank ?? 0));
 }
 
-export function mockBacklinkAnalytics(target: string, _ctx?: MockCtx): BacklinkAnalytics {
+/** MOCK backlink universe: summary + full row sets that the mock handler pages/filters. */
+export type MockBacklinkData = BacklinkSummary & { backlinks: BacklinkRow[]; referringDomains: ReferringDomainRow[]; anchors: AnchorRow[] };
+
+export function mockBacklinkAnalytics(target: string, _ctx?: MockCtx): MockBacklinkData {
   const r = rng(`${target}|backlinks`);
   const backlinks = r.logInt(2000, 40_000_000);
   const rd = Math.round(backlinks / r.float(8, 120));
   const nof = r.float(0.1, 0.45);
   const months = lastMonths(24);
   const bl = walk(r, 24, backlinks * 0.75, 0.012, 0.03);
-  const domains = refDomains(target, 150);
-  const rows: BacklinkRow[] = domains.slice(0, 120).map((d, i) => ({
+  const domains = refDomains(target, 320);
+  const rows: BacklinkRow[] = [...domains, ...domains.slice(0, 180)].map((d, i) => ({
     sourceUrl: `https://${d.domain}/${r.pick(["blog", "resources", "news", "review"])}/${r.pick(TOPICS).replace(/\s/g, "-")}-${i}`,
     sourceTitle: `${r.pick(TOPICS).replace(/\b\w/g, (c) => c.toUpperCase())} resources — ${d.domain}`,
     sourceDomainRank: d.domainRank,
@@ -69,7 +74,7 @@ export function mockBacklinkAnalytics(target: string, _ctx?: MockCtx): BacklinkA
     backlinks: rows,
     referringDomains: domains,
     anchors: [target, domainStem(target), `https://${target}`, ...ANCHORS, "(empty)"].map((anchor, i) => ({
-      anchor, backlinks: Math.round(backlinks * (0.22 / (i + 1))), referringDomains: Math.round(rd * (0.25 / (i + 1))), dofollowShare: Math.round(r.float(40, 98)),
+      anchor, backlinks: Math.round(backlinks * (0.22 / (i + 1))), referringDomains: Math.round(rd * (0.25 / (i + 1))), dofollowShare: Math.round(r.float(40, 98)), firstSeen: null,
     })),
     linkTypes: [
       { type: "Text", count: Math.round(backlinks * 0.82) }, { type: "Image", count: Math.round(backlinks * 0.11) },
@@ -79,45 +84,42 @@ export function mockBacklinkAnalytics(target: string, _ctx?: MockCtx): BacklinkA
   };
 }
 
-export function mockBacklinkGap(domains: string[]): BacklinkGap {
+/** MOCK Backlink Gap tab page: referring domains with per-domain link counts, filtered by tab rules. */
+export function mockBacklinkGap(domains: string[], q: BlGapQuery): BacklinkGapPage {
   const r = rng(`${domains.join("|")}|blgap`);
-  const pool = refDomains(domains.join("+"), 200, "gap");
-  return {
-    domains,
-    rows: pool.map((d) => {
-      const backlinks = domains.map((_, i): number | null => (i === 0 ? (r.chance(0.35) ? r.logInt(1, 300) : null) : r.chance(0.6) ? r.logInt(1, 300) : null));
-      if (!backlinks.some((b) => b != null)) backlinks[1] = r.int(1, 40);
-      const mine = backlinks[0];
-      const others = backlinks.slice(1);
-      const category: BacklinkGap["rows"][number]["category"] =
-        mine == null && others.every((b) => b != null) ? "best" : mine == null ? "weak" : others.every((b) => b != null) ? "shared" : "unique";
-      return { domain: d.domain, domainRank: d.domainRank, backlinks, category };
-    }),
-  };
+  const pool = refDomains(domains.join("+"), 400, "gap").map((d) => {
+    const backlinks = domains.map((_, i) => (r.chance(i === 0 ? 0.35 : 0.55) ? r.logInt(1, 300) : 0));
+    return { domain: d.domain, domainRank: d.domainRank, backlinks };
+  });
+  const you = (x: number[]) => x[0] > 0;
+  const comps = (x: number[]) => x.slice(1);
+  const rows = pool.filter((p) => {
+    const b = p.backlinks;
+    switch (q.tab) {
+      case "best": return !you(b) && comps(b).every((n) => n > 0);
+      case "untapped": return !you(b) && comps(b).some((n) => n > 0);
+      case "shared": return b.every((n) => n > 0);
+      case "unique": return you(b) && comps(b).every((n) => n === 0);
+    }
+  }).filter((p) => q.drMin === undefined || (p.domainRank ?? 0) >= q.drMin).sort((a, b) => (b.domainRank ?? 0) - (a.domainRank ?? 0));
+  return { domains, tab: q.tab, total: rows.length, page: q.page, size: q.size, rows: rows.slice((q.page - 1) * q.size, q.page * q.size) };
 }
 
-export function mockBacklinkAudit(target: string): BacklinkAudit {
-  const domains = refDomains(target, 180, "audit").map((d) => {
-    const reasons: string[] = [];
-    const s = d.spamScore ?? 0;
-    if (s >= 60) reasons.push("High spam score");
-    if (/\.(xyz|info)$/.test(d.domain)) reasons.push("Low-quality TLD");
-    if ((d.domainRank ?? 0) < 5) reasons.push("Very low domain rank");
-    if (d.backlinks > 1000 && d.dofollow / d.backlinks > 0.95) reasons.push("Sitewide dofollow links");
-    const risk: "toxic" | "suspicious" | "healthy" = s >= 60 || reasons.length >= 2 ? "toxic" : s >= 30 || reasons.length === 1 ? "suspicious" : "healthy";
-    return { ...d, risk, reasons };
-  });
-  const ranges = ["0–10", "11–20", "21–30", "31–40", "41–50", "51–60", "61–70", "71–80", "81–90", "91–100"];
+export function mockBacklinkAudit(target: string, sample = 500): BacklinkAudit {
+  const all = refDomains(target, 640, "audit");
+  const domains = all.slice(0, sample).map((d) => ({ ...d, ...assessRisk(d) }));
   return {
     target,
+    sampleSize: sample,
+    totalReferringDomains: all.length,
     summary: {
       referringDomains: domains.length,
       toxic: domains.filter((d) => d.risk === "toxic").length,
       suspicious: domains.filter((d) => d.risk === "suspicious").length,
       healthy: domains.filter((d) => d.risk === "healthy").length,
-      avgSpamScore: Math.round(domains.reduce((a, b) => a + (b.spamScore ?? 0), 0) / domains.length),
+      avgSpamScore: Math.round(domains.reduce((a, b) => a + (b.spamScore ?? 0), 0) / Math.max(1, domains.length)),
     },
-    distribution: ranges.map((range, i) => ({ range, count: domains.filter((d) => Math.min(9, Math.floor(Math.max(0, (d.spamScore ?? 0) - 1) / 10)) === i).length })),
+    distribution: spamDistribution(domains.map((d) => d.spamScore)),
     domains: domains.sort((a, b) => (b.spamScore ?? 0) - (a.spamScore ?? 0)),
   };
 }

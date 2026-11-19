@@ -111,7 +111,7 @@ export const TOOLS: ToolDef[] = [
     id: "backlink-analytics", label: "Backlink Analytics", section: "links", href: "/links/backlink-analytics",
     icon: Link2, query: "domain", placeholder: "Enter domain or URL",
     description: "Backlinks, referring domains, anchors and link history for a target.",
-    order: 8, integration: "mock",
+    order: 8, integration: "ready",
     endpoints: [
       "POST /v3/backlinks/summary/live", "POST /v3/backlinks/backlinks/live", "POST /v3/backlinks/referring_domains/live",
       "POST /v3/backlinks/anchors/live", "POST /v3/backlinks/history/live",
@@ -121,15 +121,15 @@ export const TOOLS: ToolDef[] = [
     id: "backlink-gap", label: "Backlink Gap", section: "links", href: "/links/backlink-gap",
     icon: Split, query: "domains", placeholder: "Your domain vs competitors",
     description: "Referring domains that link to competitors but not to you.",
-    order: 9, integration: "mock",
+    order: 9, integration: "ready",
     endpoints: ["POST /v3/backlinks/domain_intersection/live"],
   },
   {
     id: "backlink-audit", label: "Backlink Audit", section: "links", href: "/links/backlink-audit",
     icon: ShieldCheck, query: "domain", placeholder: "Enter domain",
     description: "Review referring domains by spam score and link attributes to find risky links.",
-    order: 10, integration: "mock",
-    endpoints: ["POST /v3/backlinks/referring_domains/live", "POST /v3/backlinks/bulk_spam_score/live", "POST /v3/backlinks/backlinks/live"],
+    order: 10, integration: "ready",
+    endpoints: ["POST /v3/backlinks/referring_domains/live", "POST /v3/backlinks/bulk_spam_score/live"],
   },
   {
     id: "site-audit", label: "Site Audit", section: "site", href: "/site/site-audit",

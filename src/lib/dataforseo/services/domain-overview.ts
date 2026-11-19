@@ -9,6 +9,7 @@ import type {
 } from "../types";
 import { normalizeDomainOverview } from "../normalize/domain-overview";
 import { historyPayload, labsBase, rankOverviewPayload } from "./labs-common";
+import { backlinksSummaryPayload } from "./backlinks";
 
 export type DomainOverviewInput = { domain: string; locationCode: number; languageCode: string; months: number };
 
@@ -30,7 +31,7 @@ export async function fetchDomainOverview(input: DomainOverviewInput) {
     dfsCall<DfsLabsItemsResult<DfsCompetitorDomainItem>>("competitorsDomain", { ...base, limit: 11 }, { tool }),
     dfsCall<DfsLabsItemsResult<DfsRelevantPageItem>>("relevantPages", { ...base, limit: 6, order_by: ["metrics.organic.etv,desc"] }, { tool }),
     // Backlinks API is location-independent.
-    dfsCall<DfsBacklinksSummary>("backlinksSummary", { target: input.domain, include_subdomains: true, rank_scale: "one_hundred" }, { tool }),
+    dfsCall<DfsBacklinksSummary>("backlinksSummary", backlinksSummaryPayload(input.domain), { tool }),
     dfsCall<DfsAnchorsResult>("backlinksAnchors", { target: input.domain, limit: 6, order_by: ["backlinks,desc"] }, { tool }),
   ]);
 

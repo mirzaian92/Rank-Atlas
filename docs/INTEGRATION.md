@@ -11,9 +11,9 @@ Integrate **one tool at a time**, in this order. A tool goes live only after eve
 | 5 | Organic Competitors | **Ready** — tested against the fake server; not yet run against the real API |
 | 6 | Keyword Gap | **Ready** — pairwise intersections merged; verified against fake-server ground truth; not yet run against the real API |
 | 7 | Position Tracking | Mock |
-| 8 | Backlink Analytics | Mock |
-| 9 | Backlink Gap | Mock |
-| 10 | Backlink Audit | Mock |
+| 8 | Backlink Analytics | **Ready** — summary + history + 3 server-paged tables; tested against the fake server |
+| 9 | Backlink Gap | **Ready** — one domain_intersection request per tab page; verified against fake ground truth |
+| 10 | Backlink Audit | **Ready** — referring_domains sample + bulk_spam_score + local risk rules |
 | 11 | Site Audit | Mock |
 | 12 | Historical Domain Trends | Mock |
 | 13 | SERP Analysis | Mock |
@@ -350,6 +350,83 @@ The form shows this estimate before you compare. Each request is also checked ag
 
 ---
 
+## Integrations #8–10 — Backlinks
+
+Files:
+
+| File | Role |
+|---|---|
+| `src/lib/reports/backlink-query.ts` | Query specs and mock filters |
+| `src/lib/dataforseo/filters.ts` | `blQueryToDfs`, `blGapToDfs` |
+| `src/lib/dataforseo/normalize/backlinks.ts` | Normalizers |
+| `src/lib/dataforseo/services/backlinks.ts` | Services |
+| `src/lib/reports/backlink-risk.ts` | Audit risk rules |
+| `tests/backlinks.test.ts` | Tests |
+
+Every request sends `rank_scale: "one_hundred"`, so Domain Rank is 0–100 everywhere. `include_subdomains: true` is used where applicable.
+
+### #8 Backlink Analytics
+
+| View | Endpoint | Payload / notes |
+|---|---|---|
+| summary | `backlinks/summary/live` + `backlinks/history/live` | Summary payload shared with Domain Overview (same cache entry); history `date_from` = 24 months back |
+| backlinks | `backlinks/backlinks/live` | `mode: "as_is"`, `backlinks_status_type: live/lost`, filters `is_new`, `dofollow`, `item_type in`, `domain_from_rank`, url/anchor `like`; sort `domain_from_rank` / `first_seen` / `last_seen` |
+| domains | `backlinks/referring_domains/live` | Filters `rank`, `backlinks_spam_score <=`, `domain like`; sort `rank` / `backlinks` / `first_seen` |
+| anchors | `backlinks/anchors/live` | Filter `anchor like`; sort `backlinks` / `referring_domains` |
+
+**Cost:** each table page ≈ $0.02 + $0.00003 × rows (≈ $0.0215 for 50). The summary is ≈ $0.04 for two requests. Cached for 1 day (summary, tables) and 7 days (history).
+
+### #9 Backlink Gap
+
+`backlinks/domain_intersection/live` takes up to 20 `targets` plus `exclude_targets`, so every tab is a single request:
+
+| Tab | targets | exclude_targets | intersection_mode |
+|---|---|---|---|
+| Best | Competitors | You | `all` |
+| Untapped | Competitors | You | `partial` |
+| Shared | Everyone | — | `all` |
+| Unique | You | Competitors | `all` |
+
+Tabs load on demand, one request per tab page (≈ $0.02). Rows are ordered by `1.rank` desc, with an optional `1.rank >=` filter. Excluded domains get 0 links.
+
+The previous mock-only "Weak" tab was renamed **Untapped**, because what it computes is "at least one competitor, not you".
+
+### #10 Backlink Audit
+
+1. `backlinks/referring_domains/live`: top 500 or 1,000 referring domains by backlink count.
+2. `backlinks/bulk_spam_score/live`: each domain's own spam score. If this fails, the audit falls back to the link-level `backlinks_spam_score` and says so in a note.
+
+`assessRisk()` then applies these rules:
+
+| Signal | Effect |
+|---|---|
+| Spam score ≥ 60 | Toxic |
+| Spam score 30–59 | Suspicious |
+| Low-quality TLD | Risk signal |
+| Domain Rank < 5 | Risk signal |
+| Sitewide dofollow links (>1,000 links, >95% follow) from a domain with rank < 30 | Risk signal |
+
+Two or more risk signals make a domain toxic; one makes it suspicious.
+
+**Cost:** ≈ $0.07 for 500 domains, ≈ $0.10 for 1,000; shown beside the sample picker. The "Disavow file" export lists only toxic domains, with a header telling you to review it first.
+
+### VERIFY (backlinks)
+
+- Backlinks item fields: `item_type`, `domain_from_rank`, `dofollow`, `is_new`, `is_lost`, `page_from_title`.
+- `backlinks_status_type` values.
+- `history` item `date` format, and `new_` / `lost_referring_domains`.
+- domain_intersection item structure (`domain_intersection` keyed "1".."n"; which field holds the referring domain), and `order_by` / `filters` with the `"1.rank"` syntax.
+- `bulk_spam_score` result shape (`items[].target`, `spam_score`).
+
+### Go-live checklist (#8–10)
+
+- [ ] Sandbox: each tab and filter returns rows; history renders.
+- [ ] One real domain: compare summary numbers with the raw JSON; page 2 doesn't overlap page 1.
+- [ ] Gap: spot-check 5 "Best" domains, confirming they link to every competitor and not to you.
+- [ ] Add `backlink-analytics,backlink-gap,backlink-audit` to `DATAFORSEO_LIVE_TOOLS`.
+
+---
+
 ## Usage meter
 
 The header shows today's DataForSEO spend, with a bar against the daily limit. It turns amber at 80% of a limit and red at 100%, with an icon and label as well as colour. Click it to see:
@@ -371,9 +448,6 @@ The meter refreshes every 20 s and immediately after any report that touched the
 |---|---|---|
 | Keyword Magic Tool | `labs/google/keyword_suggestions/live` (phrase), `related_keywords/live` (related), `keyword_ideas/live` (broad) | Map the UI modes to these endpoints; build questions with a `filters` regex or from `keyword_suggestions`. |
 | Position Tracking | `serp/google/organic/task_post` → `tasks_ready` → `task_get/advanced/{id}` | Standard queue, which is cheaper. Daily job writes `RankSnapshot`. History comes **only** from stored snapshots. |
-| Backlink Analytics | `backlinks/summary`, `backlinks`, `referring_domains`, `anchors`, `history` (or `timeseries_summary`) | |
-| Backlink Gap | `backlinks/domain_intersection/live` | |
-| Backlink Audit | `backlinks/referring_domains/live`, `backlinks/bulk_spam_score/live` | Risk labels are local heuristics. |
 | Site Audit | `on_page/task_post` → `on_page/summary/{id}` → `on_page/pages`, `duplicate_tags`, `links` | Asynchronous: store the task id in `SiteAuditCrawl` and poll. Show a cost estimate before starting (≈ $0.000125 per page). |
 | Historical Trends | `labs/google/historical_rank_overview/live`, `backlinks/history/live` + `DomainSnapshot` | Gaps stay gaps; nothing is interpolated. |
 | SERP Analysis | `serp/google/organic/live/advanced` (`device`, `depth`) | 12 h cache. |
