@@ -4,7 +4,7 @@ A Semrush-style SEO research platform (original branding) built on **DataForSEO 
 Next.js App Router · TypeScript · Tailwind CSS v4 · shadcn/ui-style components (Radix) · Recharts · TanStack Table · TanStack Query · PostgreSQL · Prisma.
 
 > **Status:** All 14 tools have full UI with **labelled mock data**. The DataForSEO layer is built.
-> Domain Overview (#1), Organic Research (#2) and Keyword Overview / Keyword Difficulty (#3) have live implementations that are **switched off**
+> Domain Overview (#1), Organic Research (#2), Keyword Overview / Keyword Difficulty (#3) and Keyword Magic Tool (#4) have live implementations that are **switched off**
 > by default. No paid requests are made unless you enable them.
 
 ## Local setup
@@ -46,7 +46,8 @@ searches, usage logs, the cache, spending limits and DB-stored credentials are d
 
 | Command | Purpose |
 |---|---|
-| `npm run dev` | Development server |
+| `npm run dev` | Development server (Turbopack) |
+| `npm run dev:webpack` | Development server using webpack (fallback, see below) |
 | `npm run build` / `npm start` | Production build / serve |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Unit tests (Vitest) for filter translation, query handling and normalizers |
@@ -131,7 +132,17 @@ DataForSEO also offers a free sandbox: set `DATAFORSEO_USE_SANDBOX=true` to hit 
 
 ### Known dev-server quirk
 
-Next.js 16 `next dev` occasionally gets into a full-reload loop after many file edits ("[Fast Refresh] rebuilding" on every load). Restarting `npm run dev` fixes it. Production builds are not affected.
+Next.js 16's Turbopack dev server sometimes gets stuck in a full-reload loop ("[Fast Refresh] rebuilding" on every page load), usually after files change while it is compiling. Restart `npm run dev` to fix it. If it keeps happening, use `npm run dev:webpack`, which compiles more slowly but has not shown the problem. Production builds are not affected.
+
+## Deploying to Vercel
+
+1. Import the GitHub repo in Vercel; the Next.js preset is detected automatically.
+2. Optional: add a Postgres database (Storage → Create Database), which sets `DATABASE_URL`.
+3. Set `APP_ENCRYPTION_KEY` (a fresh key) and keep `DATAFORSEO_LIVE_ENABLED=false` until login exists.
+
+The `vercel-build` script (`scripts/vercel-build.mjs`) runs `prisma migrate deploy` when `DATABASE_URL` is set, then `next build`. Without a database it skips migrations, so a mock-only deploy still builds.
+
+⚠️ There is no login yet. Turn on Vercel **Deployment Protection** before adding real credentials.
 
 ## Security notes
 

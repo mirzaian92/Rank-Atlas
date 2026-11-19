@@ -11,11 +11,9 @@ type LiveResult<T> = { data: T; costUsd: number; cached: boolean; notes: string[
 
 const loc = (t: { locationCode: number; languageCode: string }) => ({ location_code: t.locationCode, language_code: t.languageCode });
 
-/**
- * Question keywords: suggestions that start with a question word.
- * VERIFY: the `regex` operator on `keyword` in keyword_suggestions filters.
- */
-export const QUESTION_REGEX = "^(how|what|why|when|where|who|which|can|is|are|does|do|should|will) ";
+// Question keywords: suggestions that start with a question word.
+// VERIFY: the `regex` operator on `keyword` in keyword_suggestions filters.
+import { QUESTION_REGEX } from "@/lib/reports/keyword-query";
 
 /**
  * Keyword Overview — integration #3.

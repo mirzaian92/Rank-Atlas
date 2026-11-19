@@ -34,7 +34,7 @@ export const POSITION_PRESETS = [
 ];
 
 /** Columns for keyword-metric tables (Keyword Magic, Overview variations, KD). */
-export function keywordMetricColumns(db: string, opts: { trend?: boolean; features?: boolean } = {}): ColumnDef<KeywordMetrics>[] {
+export function keywordMetricColumns(db: string, opts: { trend?: boolean; features?: boolean; isSortable?: (id: string) => boolean } = {}): ColumnDef<KeywordMetrics>[] {
   const cols: ColumnDef<KeywordMetrics>[] = [
     { accessorKey: "keyword", header: "Keyword", cell: ({ getValue }) => <Link className="font-medium text-brand hover:underline" href={keywordLink(getValue<string>(), db)}>{getValue<string>()}</Link> },
     { accessorKey: "intent", header: "Intent", cell: ({ row }) => <IntentBadge intent={row.original.intent} />, meta: { align: "center" }, enableSorting: false },
@@ -52,11 +52,16 @@ export function keywordMetricColumns(db: string, opts: { trend?: boolean; featur
     cols.push({ accessorKey: "serpFeatures", header: "SERP features", cell: ({ row }) => <SerpFeatureList features={row.original.serpFeatures} />, enableSorting: false, meta: { exportValue: (r) => r.serpFeatures.join("; ") } });
   }
   cols.push({ accessorKey: "resultsCount", header: "Results", cell: ({ getValue }) => fmtCompact(getValue<number | null>()), meta: { align: "right" } });
-  return cols;
+  if (!opts.isSortable) return cols;
+  return cols.map((c) => {
+    const id = (c as { accessorKey?: string }).accessorKey ?? c.id ?? "";
+    return opts.isSortable!(id) ? c : { ...c, enableSorting: false };
+  });
 }
 
-export function keywordMetricFilters(): FilterDef<KeywordMetrics>[] {
-  return [
+/** `remote: true` drops filters the server can't apply (word count). */
+export function keywordMetricFilters(opts: { remote?: boolean } = {}): FilterDef<KeywordMetrics>[] {
+  const all: FilterDef<KeywordMetrics>[] = [
     { id: "include", label: "Include / exclude", type: "include", accessor: (r) => r.keyword },
     { id: "volume", label: "Volume", type: "range", accessor: (r) => r.searchVolume, presets: VOLUME_PRESETS },
     { id: "kd", label: "KD %", type: "range", accessor: (r) => r.keywordDifficulty, presets: KD_PRESETS },
@@ -64,6 +69,7 @@ export function keywordMetricFilters(): FilterDef<KeywordMetrics>[] {
     { id: "cpc", label: "CPC", type: "range", accessor: (r) => r.cpc },
     { id: "words", label: "Word count", type: "range", accessor: (r) => r.wordCount },
   ];
+  return opts.remote ? all.filter((f) => f.id !== "words") : all;
 }
 
 /** Columns for ranked-keyword tables (Organic Research). */

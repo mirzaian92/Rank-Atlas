@@ -79,7 +79,7 @@ export const TOOLS: ToolDef[] = [
     id: "keyword-magic-tool", label: "Keyword Magic Tool", section: "seo", href: "/seo/keyword-magic-tool",
     icon: Sparkles, query: "keyword", placeholder: "Enter seed keyword",
     description: "Expand a seed keyword into broad, phrase and related keyword ideas with filters.",
-    order: 4, integration: "mock",
+    order: 4, integration: "ready",
     endpoints: [
       "POST /v3/dataforseo_labs/google/keyword_suggestions/live",
       "POST /v3/dataforseo_labs/google/related_keywords/live",

@@ -2,6 +2,8 @@
 import type { RemoteState } from "@/components/data/data-table";
 import type { RangeValue } from "@/components/data/filters";
 import { RANKED_SORTS, rankedQueryToParams, type RankedSort } from "@/lib/reports/ranked-query";
+import { KEYWORD_SORTS, type KeywordSort } from "@/lib/reports/keyword-query";
+
 
 /** Column ids that sort to a different server field. */
 const SORT_ALIASES: Record<string, RankedSort> = { trafficShare: "etv" };
@@ -34,5 +36,35 @@ export function rankedParamsFromTable(s: RemoteState): Record<string, string | u
     cpcMin: range("cpc").min, cpcMax: range("cpc").max,
     intent: (f.intent as string[] | undefined) ?? [],
     serp: (f.serp as string[] | undefined) ?? [],
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Keyword Magic Tool (keyword-list queries)
+// ---------------------------------------------------------------------------
+
+export function isKeywordSortable(columnId: string): boolean {
+  return (KEYWORD_SORTS as readonly string[]).includes(columnId);
+}
+
+/** Filter ids must match keywordMetricFilters({ remote: true }) in components/report/columns.tsx. */
+export function keywordParamsFromTable(s: RemoteState): Record<string, string | undefined> {
+  const f = s.filters;
+  const range = (id: string) => (f[id] as RangeValue | undefined) ?? {};
+  const words = (v: string | undefined) => (v ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  const incl = f.include as { include?: string; exclude?: string } | undefined;
+  const col = s.sorting[0];
+  const sort: KeywordSort = col && isKeywordSortable(col.id) ? (col.id as KeywordSort) : "searchVolume";
+  return rankedQueryToParams({
+    page: s.pageIndex + 1,
+    size: s.pageSize,
+    sort,
+    dir: col ? (col.desc ? "desc" : "asc") : "desc",
+    inc: [...(s.search ? [s.search] : []), ...words(incl?.include)].slice(0, 3),
+    exc: words(incl?.exclude).slice(0, 3),
+    volMin: range("volume").min, volMax: range("volume").max,
+    kdMin: range("kd").min, kdMax: range("kd").max,
+    cpcMin: range("cpc").min, cpcMax: range("cpc").max,
+    intent: (f.intent as string[] | undefined) ?? [],
   });
 }

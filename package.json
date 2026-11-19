@@ -12,7 +12,9 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dev:webpack": "next dev --webpack",
+    "vercel-build": "node scripts/vercel-build.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

@@ -8,6 +8,9 @@
  * VERIFY against https://docs.dataforseo.com/v3/dataforseo_labs/filters/ (field names, `has` on arrays, nesting).
  */
 import type { RankedQuery, RankedSort } from "@/lib/reports/ranked-query";
+import type { KeywordQuery, KeywordSort } from "@/lib/reports/keyword-query";
+import { QUESTION_REGEX } from "@/lib/reports/keyword-query";
+
 
 export type DfsCondition = [string, string, unknown];
 export type DfsFilter = (DfsCondition | "and" | "or" | DfsFilter)[];
@@ -93,5 +96,45 @@ export function rankedQueryToDfs(q: RankedQuery): { filters?: DfsFilter; order_b
   const order_by = [`${SORT_FIELD[q.sort]},${q.dir}`];
   if (q.sort !== "searchVolume") order_by.push(`${RANKED_FIELDS.searchVolume},desc`);
 
+  return { ...(filters ? { filters } : {}), order_by, limit: q.size, offset: (q.page - 1) * q.size };
+}
+
+// ---------------------------------------------------------------------------
+// Keyword lists (keyword_suggestions / keyword_ideas / related_keywords)
+// ---------------------------------------------------------------------------
+
+/**
+ * Field paths for keyword-list endpoints. keyword_suggestions / keyword_ideas items have these at
+ * the top level; related_keywords nests them under `keyword_data.` (pass that as `prefix`).
+ */
+export function keywordFields(prefix = "") {
+  return {
+    keyword: `${prefix}keyword`,
+    searchVolume: `${prefix}keyword_info.search_volume`,
+    cpc: `${prefix}keyword_info.cpc`,
+    competition: `${prefix}keyword_info.competition`,
+    keywordDifficulty: `${prefix}keyword_properties.keyword_difficulty`,
+    intent: `${prefix}search_intent_info.main_intent`,
+  };
+}
+
+export function keywordQueryToDfs(q: KeywordQuery, prefix = ""): { filters?: DfsFilter; order_by: string[]; limit: number; offset: number } {
+  const f = keywordFields(prefix);
+  const parts: (DfsCondition | DfsFilter)[] = [
+    ...(q.mode === "questions" ? [[f.keyword, "regex", QUESTION_REGEX] as DfsCondition] : []),
+    ...q.inc.map((w): DfsCondition => [f.keyword, "ilike", `%${likeEscape(w)}%`]),
+    ...q.exc.map((w): DfsCondition => [f.keyword, "not_ilike", `%${likeEscape(w)}%`]),
+    ...range(f.searchVolume, q.volMin, q.volMax),
+    ...range(f.keywordDifficulty, q.kdMin, q.kdMax),
+    ...range(f.cpc, q.cpcMin, q.cpcMax),
+  ];
+  if (q.intent.length) parts.push([f.intent, "in", q.intent]);
+  const filters = parts.length ? joinAnd(parts) : undefined;
+  if (filters && countConditions(filters) > MAX_FILTER_CONDITIONS) {
+    throw new FilterLimitError(`Too many filter conditions (${countConditions(filters)}). DataForSEO allows up to ${MAX_FILTER_CONDITIONS}.`);
+  }
+  const sortField: Record<KeywordSort, string> = { searchVolume: f.searchVolume, keywordDifficulty: f.keywordDifficulty, cpc: f.cpc, competition: f.competition };
+  const order_by = [`${sortField[q.sort]},${q.dir}`];
+  if (q.sort !== "searchVolume") order_by.push(`${f.searchVolume},desc`);
   return { ...(filters ? { filters } : {}), order_by, limit: q.size, offset: (q.page - 1) * q.size };
 }

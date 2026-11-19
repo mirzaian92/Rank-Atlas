@@ -1,10 +1,11 @@
 /** MOCK generators for keyword-level reports. Placeholder data for UI design only. */
 import type {
-  KeywordDifficultyReport, KeywordGap, KeywordGapRow, KeywordMagic, KeywordMetrics, KeywordOverview,
+  KeywordDifficultyReport, KeywordGap, KeywordGapRow, KeywordMetrics, KeywordOverview,
   SearchIntent, SerpAnalysis, SerpResult,
 } from "@/lib/reports/types";
 import { lastMonths, rng } from "./rng";
-import { COMPETITOR_STEMS, MODIFIERS_POST, MODIFIERS_PRE, QUESTIONS, SERP_FEATURES, TLDS } from "./words";
+import { COMPETITOR_STEMS, MODIFIERS_POST, MODIFIERS_PRE, QUESTIONS, SERP_FEATURES, TLDS, TOPICS } from "./words";
+import type { MagicMode } from "@/lib/reports/keyword-query";
 import type { MockCtx } from "./domain";
 import { mockRankedKeywords } from "./domain";
 
@@ -91,27 +92,34 @@ export function mockKeywordOverview(keyword: string, ctx: MockCtx): KeywordOverv
   };
 }
 
-export function mockKeywordMagic(seed: string, ctx: MockCtx, mode: string): KeywordMagic {
+/**
+ * MOCK keyword universe for each Keyword Magic mode (paged / filtered by applyKeywordQuery).
+ * broad = seed words in any position · phrase = contains the exact seed phrase · related = topical
+ * neighbours without the seed · questions = question-form · ideas = mix of all.
+ */
+export function mockKeywordMagicPool(seed: string, ctx: MockCtx, mode: MagicMode): KeywordMetrics[] {
   const r = rng(`${seed}|${ctx.locationCode}|magic|${mode}`);
-  const kws = expand(seed, r, 400).map((k) => mockKeywordMetrics(k, ctx)).sort((a, b) => b.searchVolume - a.searchVolume);
-  const groups = new Map<string, { count: number; volume: number }>();
-  const seedWords = new Set(seed.toLowerCase().split(/\s+/));
-  for (const k of kws) {
-    for (const w of k.keyword.toLowerCase().split(/\s+/)) {
-      if (seedWords.has(w) || w.length < 3) continue;
-      const g = groups.get(w) ?? { count: 0, volume: 0 };
-      g.count++;
-      g.volume += k.searchVolume;
-      groups.set(w, g);
+  const s = seed.toLowerCase();
+  const words = s.split(/\s+/);
+  let list: string[];
+  if (mode === "questions") list = expand(seed, r, 220, true);
+  else if (mode === "phrase") list = expand(seed, r, 600).filter((k) => k.includes(s));
+  else if (mode === "related") {
+    const out = new Set<string>();
+    let guard = 0;
+    while (out.size < 400 && guard++ < 4000) {
+      const t = r.pick(TOPICS);
+      out.add(r.chance(0.5) ? `${r.pick(MODIFIERS_PRE)} ${t} ${r.pick(MODIFIERS_POST)}` : `${t} ${r.pick(MODIFIERS_POST)}`);
     }
+    list = [...out];
+  } else if (mode === "broad") {
+    // Seed words split around modifiers, e.g. "crm software" → "crm for small business software".
+    const extra = words.length > 1 ? expand(words.join(` ${r.pick(["for", "and", "with"])} `), r, 150) : [];
+    list = [...new Set([...expand(seed, r, 600), ...extra])];
+  } else {
+    list = [...new Set([...expand(seed, r, 300), ...expand(r.pick(TOPICS), r, 200), ...expand(seed, r, 80, true)])];
   }
-  return {
-    seed,
-    total: kws.length,
-    totalVolume: kws.reduce((a, b) => a + b.searchVolume, 0),
-    groups: [...groups.entries()].map(([term, g]) => ({ term, ...g })).sort((a, b) => b.count - a.count).slice(0, 30),
-    keywords: kws,
-  };
+  return list.map((k) => mockKeywordMetrics(k, ctx));
 }
 
 export function mockKeywordDifficulty(keywords: string[], ctx: MockCtx): KeywordDifficultyReport {

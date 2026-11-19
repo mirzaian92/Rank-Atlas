@@ -30,10 +30,23 @@ const RESULTS = {
   },
   "/v3/dataforseo_labs/google/keyword_overview/live": (task) =>
     labs((task.keywords ?? []).filter((k) => !k.includes("nodata")).map((k, i) => fakeKeyword(k, i))),
+  // Paged (limit/offset); questions when a regex filter is present; total_count fixed per list.
   "/v3/dataforseo_labs/google/keyword_suggestions/live": (task) => {
-    const q = Boolean(task.filters);
-    const words = q ? ["how to use", "what is", "why use", "is"] : ["best", "free", "cheap", "top", "online"];
-    return labs(words.map((w, i) => fakeKeyword(q ? `${w} ${task.keyword}` : `${w} ${task.keyword}`, i + 1)), 40);
+    const q = JSON.stringify(task.filters ?? "").includes("regex");
+    const pre = q ? ["how to use", "what is", "why use", "is", "can i use", "where to buy"] : ["best", "free", "cheap", "top", "online", "pro", "simple", "open source"];
+    const all = Array.from({ length: q ? 60 : 180 }, (_, i) => fakeKeyword(`${pre[i % pre.length]} ${task.keyword}${i >= pre.length ? ` ${["for teams", "app", "pricing", "review", "2026"][i % 5]} ${i}` : ""}`, i));
+    const off = task.offset ?? 0, lim = task.limit ?? 100;
+    return labs(all.slice(off, off + lim), all.length);
+  },
+  "/v3/dataforseo_labs/google/related_keywords/live": (task) => {
+    const all = Array.from({ length: 90 }, (_, i) => ({ se_type: "google", depth: 1 + (i % 2), keyword_data: fakeKeyword(`related topic ${i} ${task.keyword.split(" ")[0]}`, i) }));
+    const off = task.offset ?? 0, lim = task.limit ?? 100;
+    return labs(all.slice(off, off + lim), all.length);
+  },
+  "/v3/dataforseo_labs/google/keyword_ideas/live": (task) => {
+    const all = Array.from({ length: 120 }, (_, i) => fakeKeyword(`${["tool", "platform", "service", "suite"][i % 4]} idea ${i}`, i));
+    const off = task.offset ?? 0, lim = task.limit ?? 100;
+    return labs(all.slice(off, off + lim), all.length);
   },
   "/v3/serp/google/organic/live/advanced": (task) => [{
     keyword: task.keyword, se_results_count: 1830000, item_types: ["organic", "people_also_ask"],
@@ -50,8 +63,8 @@ const RESULTS = {
 
 const fakeKeyword = (keyword, i) => ({
   se_type: "google", keyword, location_code: 2840, language_code: "en",
-  keyword_info: { search_volume: 9000 - i * 700, cpc: 3.2 + i, competition: 0.5, monthly_searches: Array.from({ length: 12 }, (_, m) => ({ year: 2026, month: 12 - m, search_volume: 8000 + m * 150 })) },
-  keyword_properties: { keyword_difficulty: 30 + i * 9 },
+  keyword_info: { search_volume: Math.max(10, 9000 - i * 70), cpc: Math.round((0.8 + (i % 9) * 0.6) * 100) / 100, competition: 0.5, monthly_searches: Array.from({ length: 12 }, (_, m) => ({ year: 2026, month: 12 - m, search_volume: 8000 + m * 150 })) },
+  keyword_properties: { keyword_difficulty: (30 + i * 9) % 100 },
   serp_info: { serp_item_types: ["organic", "people_also_ask"], se_results_count: 1830000 },
   search_intent_info: { main_intent: ["commercial", "informational", "transactional", "navigational"][i % 4] },
 });

@@ -4,9 +4,11 @@ import type { ToolId } from "@/lib/config/tools";
 import { domainListSchema, domainSchema, keywordListSchema, keywordSchema, marketSchema } from "@/lib/validation/params";
 import { mockDomainOverview, mockHistoricalTrends, mockOrganicCompetitors, mockOrganicKeywordPool, mockOrganicPages, mockOrganicSummary } from "@/lib/mock/domain";
 import { applyRankedQuery, rankedQuerySchema } from "@/lib/reports/ranked-query";
+import { applyKeywordQuery, keywordQuerySchema, wordGroups } from "@/lib/reports/keyword-query";
+import { fetchKeywordMagic } from "@/lib/dataforseo/services/keyword-magic";
 import { fetchKeywordDifficulty, fetchKeywordOverview } from "@/lib/dataforseo/services/keywords";
 import { fetchOrganicKeywords, fetchOrganicPages, fetchOrganicSummary } from "@/lib/dataforseo/services/organic-research";
-import { mockKeywordDifficulty, mockKeywordGap, mockKeywordMagic, mockKeywordOverview, mockSerpAnalysis } from "@/lib/mock/keywords";
+import { mockKeywordDifficulty, mockKeywordGap, mockKeywordMagicPool, mockKeywordOverview, mockSerpAnalysis } from "@/lib/mock/keywords";
 import { mockBacklinkAnalytics, mockBacklinkAudit, mockBacklinkGap, mockPositionTracking, mockSiteAudit } from "@/lib/mock/links-site";
 import { fetchDomainOverview } from "@/lib/dataforseo/services/domain-overview";
 
@@ -60,8 +62,12 @@ export const REPORTS: Record<ToolId, Handler<unknown>> = {
     live: (p) => fetchKeywordOverview({ keyword: p.q, locationCode: p.locationCode, languageCode: p.languageCode }),
   }),
   "keyword-magic-tool": h({
-    schema: q(keywordSchema).extend({ mode: z.enum(["broad", "phrase", "exact", "related", "questions"]).default("broad") }),
-    mock: (p) => mockKeywordMagic(p.q, p, p.mode),
+    schema: q(keywordSchema).and(keywordQuerySchema),
+    mock: (p) => {
+      const { rows, total } = applyKeywordQuery(mockKeywordMagicPool(p.q, p, p.mode), p);
+      return { seed: p.q, mode: p.mode, total, page: p.page, size: p.size, rows, groups: wordGroups(rows, p.q) };
+    },
+    live: (p) => fetchKeywordMagic(p.q, p, p),
   }),
   "keyword-difficulty": h({
     schema: q(keywordListSchema),

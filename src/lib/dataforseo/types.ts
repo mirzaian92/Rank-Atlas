@@ -147,3 +147,6 @@ export type DfsSerpResult = {
   item_types?: string[] | null;
   items: DfsSerpItem[] | null;
 };
+
+/** related_keywords items wrap the keyword in `keyword_data`. */
+export type DfsRelatedKeywordItem = { se_type?: string; keyword_data: DfsKeywordItem; depth?: number; related_keywords?: string[] | null };

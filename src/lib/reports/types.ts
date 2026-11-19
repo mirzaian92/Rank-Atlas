@@ -135,13 +135,18 @@ export type KeywordOverview = {
   serp: SerpResult[];
 };
 
-export type KeywordMagic = {
+/** One server-paged slice of Keyword Magic Tool results. */
+export type KeywordMagicPage = {
   seed: string;
+  mode: "broad" | "phrase" | "related" | "questions" | "ideas";
+  /** Filtered total reported by the provider for this mode + filters. */
   total: number;
-  totalVolume: number;
+  page: number;
+  size: number;
+  rows: KeywordMetrics[];
+  /** Common words among `rows` only (not across all results). */
   groups: { term: string; count: number; volume: number }[];
-  keywords: KeywordMetrics[];
-};
+}
 
 export type KeywordDifficultyReport = { keywords: KeywordMetrics[] };
 

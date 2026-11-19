@@ -7,7 +7,7 @@ Integrate **one tool at a time**, in this order. A tool goes live only after eve
 | 1 | Domain Overview | **Ready** — live code written and tested against a local fake server; not yet run against the real API |
 | 2 | Organic Research | **Ready** — server-side paging, sorting and filters; tested against the fake server; not yet run against the real API |
 | 3 | Keyword Overview (+ Keyword Difficulty) | **Ready** — tested against the fake server; not yet run against the real API |
-| 4 | Keyword Magic Tool | Mock |
+| 4 | Keyword Magic Tool | **Ready** — server-side paging/sort/filters across 5 modes; tested against the fake server; not yet run against the real API |
 | 5 | Organic Competitors | Mock |
 | 6 | Keyword Gap | Mock |
 | 7 | Position Tracking | Mock |
@@ -235,6 +235,56 @@ One `keyword_overview/live` call for the whole list (≤ 100 keywords): ≈ $0.0
 - [ ] Sandbox: page renders; variations and questions return rows.
 - [ ] One real keyword: compare volume / KD / CPC and the monthly trend with the raw JSON.
 - [ ] Add `keyword-overview,keyword-difficulty` to `DATAFORSEO_LIVE_TOOLS`.
+
+---
+
+## Integration #4 — Keyword Magic Tool
+
+### Files
+
+| File | Role |
+|---|---|
+| `src/lib/reports/keyword-query.ts` | Query spec (mode, page, size, sort, filters), mock `applyKeywordQuery`, `wordGroups`, question regex |
+| `src/lib/dataforseo/filters.ts` | `keywordQueryToDfs(q, prefix)`; prefix is `keyword_data.` for related_keywords |
+| `src/lib/dataforseo/services/keyword-magic.ts` | Picks the endpoint per mode; one request per table page |
+| `src/lib/client/ranked-table.ts` | `keywordParamsFromTable` (table state → params) |
+| `src/app/(app)/seo/keyword-magic-tool/page.tsx` | Modes, groups sidebar, remote table |
+| `tests/keyword-magic.test.ts` | Translator, schema, mock query, groups |
+
+### Modes
+
+| Mode | Endpoint | Key payload |
+|---|---|---|
+| Broad match | `keyword_suggestions/live` | `keyword`, `exact_match: false` |
+| Phrase match | `keyword_suggestions/live` | `keyword`, `exact_match: true` |
+| Questions | `keyword_suggestions/live` | Plus `["keyword","regex","^(how|what|…) "]` |
+| Related | `related_keywords/live` | `keyword`, `depth: 2`; fields under `keyword_data.` |
+| Ideas | `keyword_ideas/live` | `keywords: [seed]` |
+
+All modes send `include_serp_info: true`, `limit` (25 / 50 / 100), `offset`, `order_by` (volume, KD, CPC or competition, with a secondary volume sort) and `filters` (include/exclude words, volume, KD, CPC, intent; max 8 conditions). Paging stops at row 10,000.
+
+The previous mock-only "Exact match" mode was dropped: DataForSEO has no equivalent, and it wasn't going to be faked.
+
+### Groups sidebar
+
+The groups are the common words among the keywords on the **current page**, and the UI says so. Clicking one applies a server-side "contains" filter to all results. A true grouping over every result would need a large extra request (≈ $0.11 for 1,000 rows), so it isn't done automatically.
+
+### Cost
+
+≈ $0.01 + $0.0001 × rows per page, so 50 rows ≈ $0.015. Cached for 14 days per mode + filters + page.
+
+### VERIFY
+
+- `exact_match` semantics on `keyword_suggestions`.
+- `related_keywords` accepts `offset` + `order_by` + `filters` with the `keyword_data.` prefix, and `total_count` with `depth: 2`.
+- `keyword_ideas` accepts `order_by` / `filters` on these fields.
+- `regex` operator support (shared with Keyword Overview questions).
+
+### Go-live checklist
+
+- [ ] Sandbox: each mode returns rows; each sortable column and filter works.
+- [ ] One real seed: page 1 vs page 2 don't overlap; `total_count` changes with filters.
+- [ ] Add `keyword-magic-tool` to `DATAFORSEO_LIVE_TOOLS`.
 
 ---
 
