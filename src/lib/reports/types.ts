@@ -156,13 +156,15 @@ export type KeywordGapRow = {
   cpc: number | null;
   keywordDifficulty: number | null;
   intent: SearchIntent | null;
-  positions: (number | null)[]; // per domain, same order as `domains`
-  category: "shared" | "missing" | "weak" | "strong" | "untapped" | "unique";
+  /** Position per domain, same order as `domains` (index 0 = you). null = not ranking or not in the sample. */
+  positions: (number | null)[];
 };
 export type KeywordGap = {
   domains: string[];
-  totals: { domain: string; keywords: number }[];
-  overlap: { shared: number; uniqueToFirst: number; uniqueToOthers: number };
+  /** Max keywords requested per pairwise list (see lib/reports/keyword-gap.ts). */
+  sampleSize: number;
+  /** Total organic keywords per domain (from domain_rank_overview), not limited by the sample. */
+  totals: { domain: string; keywords: number | null }[];
   rows: KeywordGapRow[];
 };
 

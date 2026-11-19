@@ -4,7 +4,7 @@ A Semrush-style SEO research platform (original branding) built on **DataForSEO 
 Next.js App Router · TypeScript · Tailwind CSS v4 · shadcn/ui-style components (Radix) · Recharts · TanStack Table · TanStack Query · PostgreSQL · Prisma.
 
 > **Status:** All 14 tools have full UI with **labelled mock data**. The DataForSEO layer is built.
-> Domain Overview (#1), Organic Research (#2), Keyword Overview / Keyword Difficulty (#3) and Keyword Magic Tool (#4) have live implementations that are **switched off**
+> Domain Overview (#1), Organic Research (#2), Keyword Overview / Keyword Difficulty (#3), Keyword Magic Tool (#4), Organic Competitors (#5) and Keyword Gap (#6) have live implementations that are **switched off**
 > by default. No paid requests are made unless you enable them.
 
 ## Local setup
@@ -132,7 +132,7 @@ DataForSEO also offers a free sandbox: set `DATAFORSEO_USE_SANDBOX=true` to hit 
 
 ### Known dev-server quirk
 
-Next.js 16's Turbopack dev server sometimes gets stuck in a full-reload loop ("[Fast Refresh] rebuilding" on every page load), usually after files change while it is compiling. Restart `npm run dev` to fix it. If it keeps happening, use `npm run dev:webpack`, which compiles more slowly but has not shown the problem. Production builds are not affected.
+Next.js 16's Turbopack dev server sometimes gets stuck in a full-reload loop ("[Fast Refresh] rebuilding" on every page load), usually after files change while it is compiling. Restart `npm run dev` to fix it. (Diagnosis so far: on each page load the HMR socket reports `building`, then `reloadPage: HMR hash mismatch`, and the chunk's `hmrVersion` bumps by one. Disabling `logging.browserToTerminal` did not stop the trigger.) If it keeps happening, use `npm run dev:webpack`, which compiles more slowly but has not shown the problem. Production builds are not affected.
 
 ## Deploying to Vercel
 

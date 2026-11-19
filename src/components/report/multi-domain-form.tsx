@@ -8,7 +8,14 @@ import { looksLikeDomain, normalizeDomain } from "@/lib/utils";
 import { SERIES } from "@/components/charts/palette";
 
 /** "You vs competitors" input used by Keyword Gap and Backlink Gap. Writes ?q=a.com,b.com */
-export function MultiDomainForm({ value, onSubmit, max = 5, labels = ["You"] }: { value: string; onSubmit: (q: string) => void; max?: number; labels?: string[] }) {
+export function MultiDomainForm({ value, onSubmit, max = 5, labels = ["You"], extra }: {
+  value: string;
+  onSubmit: (q: string) => void;
+  max?: number;
+  labels?: string[];
+  /** Extra controls / info rendered before the submit button; receives the number of filled domains. */
+  extra?: (filledCount: number) => React.ReactNode;
+}) {
   const initial = value ? value.split(",").map((s) => s.trim()) : ["", ""];
   const [domains, setDomains] = useState<string[]>(initial.length >= 2 ? initial : [...initial, ""]);
   useEffect(() => {
@@ -44,7 +51,10 @@ export function MultiDomainForm({ value, onSubmit, max = 5, labels = ["You"] }: 
         {domains.length < max && (
           <Button type="button" variant="ghost" size="sm" onClick={() => setDomains([...domains, ""])}><Plus /> Add competitor</Button>
         )}
-        <Button type="submit" disabled={filled.length < 2 || invalid.length > 0} className="ml-auto">Compare</Button>
+        <div className="ml-auto flex flex-wrap items-end gap-3">
+          {extra?.(filled.length)}
+          <Button type="submit" disabled={filled.length < 2 || invalid.length > 0}>Compare</Button>
+        </div>
       </form>
       {invalid.length > 0 && <p className="mt-2 text-xs text-critical">Invalid domain: {invalid.join(", ")}</p>}
     </Card>

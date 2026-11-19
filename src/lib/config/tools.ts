@@ -61,8 +61,8 @@ export const TOOLS: ToolDef[] = [
     id: "organic-competitors", label: "Organic Competitors", section: "seo", href: "/seo/organic-competitors",
     icon: Users, query: "domain", placeholder: "Enter domain",
     description: "Domains competing for the same organic keywords.",
-    order: 5, integration: "mock",
-    endpoints: ["POST /v3/dataforseo_labs/google/competitors_domain/live"],
+    order: 5, integration: "ready",
+    endpoints: ["POST /v3/dataforseo_labs/google/competitors_domain/live", "POST /v3/dataforseo_labs/google/domain_rank_overview/live"],
   },
   {
     id: "keyword-overview", label: "Keyword Overview", section: "seo", href: "/seo/keyword-overview",
@@ -97,8 +97,8 @@ export const TOOLS: ToolDef[] = [
     id: "keyword-gap", label: "Keyword Gap", section: "seo", href: "/seo/keyword-gap",
     icon: GitCompareArrows, query: "domains", placeholder: "Your domain vs competitor",
     description: "Compare organic keyword portfolios between domains: shared, missing, weak and unique.",
-    order: 6, integration: "mock",
-    endpoints: ["POST /v3/dataforseo_labs/google/domain_intersection/live", "POST /v3/dataforseo_labs/google/ranked_keywords/live"],
+    order: 6, integration: "ready",
+    endpoints: ["POST /v3/dataforseo_labs/google/domain_intersection/live", "POST /v3/dataforseo_labs/google/domain_rank_overview/live"],
   },
   {
     id: "position-tracking", label: "Position Tracking", section: "seo", href: "/seo/position-tracking",

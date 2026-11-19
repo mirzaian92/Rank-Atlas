@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/states/states";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/tabs";
 import { useSearchState } from "@/lib/client/use-search-state";
+import { isGenericDomain } from "@/lib/reports/generic-domains";
 import { fmtCompact, fmtCurrency, fmtDate, fmtNumber, fmtPercent, pctChange } from "@/lib/utils";
 
 export default function DomainOverviewPage() {
@@ -65,6 +66,8 @@ function Dashboard({ data, meta, range }: { data: DomainOverview; meta: ReportMe
 
   // When a past month is selected, KPIs come from the historical series; otherwise the live summary.
   const s = data.summary;
+  // Generic sites (Wikipedia, YouTube…) rank for everything; Organic Competitors has a toggle to show them.
+  const competitors = data.competitors.filter((c) => !isGenericDomain(c.domain));
   const kpi = isHistorical && point
     ? { organicEtv: point.organicEtv, organicKeywords: point.organicKeywords, paidEtv: point.paidEtv, paidKeywords: point.paidKeywords }
     : { organicEtv: s.organicEtv, organicKeywords: s.organicKeywords, paidEtv: s.paidEtv, paidKeywords: s.paidKeywords };
@@ -226,18 +229,18 @@ function Dashboard({ data, meta, range }: { data: DomainOverview; meta: ReportMe
           info="Domains with the largest overlap in ranking keywords. Competition level = common keywords ÷ combined unique keywords."
           actions={<Button asChild variant="outline" size="sm"><Link href={link("/seo/organic-competitors")}>View all <ArrowRight /></Link></Button>}
         >
-          <DataTable compact data={data.competitors.slice(0, 8)} columns={competitorColumns(data.competitors)} />
+          <DataTable compact data={competitors.slice(0, 8)} columns={competitorColumns(competitors)} />
         </Section>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Section title="Competitive positioning map" mock={mock} info="Each bubble is a domain: horizontal = organic keywords, vertical = estimated organic traffic (log scales). Bubble size = keywords shared with the analysed domain.">
-          {data.competitors.length ? (
+          {competitors.length ? (
             <ScatterMap
               highlight={data.domain}
               points={[
                 { name: data.domain, x: Math.max(1, s.organicKeywords), y: Math.max(1, s.organicEtv), z: s.organicKeywords },
-                ...data.competitors.map((c) => ({ name: c.domain, x: Math.max(1, c.organicKeywords), y: Math.max(1, c.organicEtv), z: c.commonKeywords })),
+                ...competitors.map((c) => ({ name: c.domain, x: Math.max(1, c.organicKeywords), y: Math.max(1, c.organicEtv), z: c.commonKeywords })),
               ]}
             />
           ) : <EmptyState compact title="No competitors found" />}

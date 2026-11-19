@@ -56,6 +56,19 @@ const RESULTS = {
       { type: "organic", rank_group: 2, rank_absolute: 3, domain: "beta.io", title: `${task.keyword} guide`, url: "https://beta.io/guide", description: "desc" },
     ],
   }],
+  // Each domain "ranks" for a deterministic keyword set; the fake computes intersections from those.
+  "/v3/dataforseo_labs/google/domain_intersection/live": (task) => {
+    const set = (d) => new Map(Array.from({ length: 400 }, (_, i) => [`kw ${(hash(d) + i * 7) % 900}`, 1 + ((hash(d) + i) % 80)]));
+    const a = set(task.target1), b = set(task.target2);
+    const keys = [...a.keys()].filter((k) => (task.intersections ? b.has(k) : !b.has(k)));
+    const items = keys.map((k) => ({
+      se_type: "google",
+      keyword_data: fakeKeyword(k, Number(k.split(" ")[1]) % 40),
+      first_domain_serp_element: { type: "organic", rank_group: a.get(k), url: `https://${task.target1}/x` },
+      second_domain_serp_element: task.intersections ? { type: "organic", rank_group: b.get(k), url: `https://${task.target2}/x` } : null,
+    })).sort((x, y) => y.keyword_data.keyword_info.search_volume - x.keyword_data.keyword_info.search_volume);
+    return labs(items.slice(0, task.limit ?? 100), items.length);
+  },
   "/v3/backlinks/summary/live": () => [{ target: "fake.com", rank: 48, backlinks: 120000, backlinks_spam_score: 4, broken_backlinks: 30, referring_domains: 2100, referring_domains_nofollow: 300, referring_main_domains: 1900, referring_ips: 1700, referring_subnets: 1400, referring_links_tld: { com: 1200, org: 300 }, referring_links_types: { anchor: 110000 }, referring_links_attributes: { nofollow: 20000 } }],
   "/v3/backlinks/anchors/live": () => [{ total_count: 1, items: [{ anchor: "fake", backlinks: 5000, referring_domains: 400 }] }],
   "/v3/appendix/user_data": () => [{ login: "fake@example.com", timezone: "UTC", money: { total: 50, balance: 42.5 } }],
@@ -68,6 +81,8 @@ const fakeKeyword = (keyword, i) => ({
   serp_info: { serp_item_types: ["organic", "people_also_ask"], se_results_count: 1830000 },
   search_intent_info: { main_intent: ["commercial", "informational", "transactional", "navigational"][i % 4] },
 });
+
+const hash = (s) => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 
 let calls = 0;
 http.createServer((req, res) => {

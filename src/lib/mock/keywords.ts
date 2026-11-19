@@ -1,13 +1,14 @@
 /** MOCK generators for keyword-level reports. Placeholder data for UI design only. */
 import type {
-  KeywordDifficultyReport, KeywordGap, KeywordGapRow, KeywordMetrics, KeywordOverview,
+  KeywordDifficultyReport, KeywordGap, KeywordMetrics, RankedKeyword, KeywordOverview,
   SearchIntent, SerpAnalysis, SerpResult,
 } from "@/lib/reports/types";
 import { lastMonths, rng } from "./rng";
 import { COMPETITOR_STEMS, MODIFIERS_POST, MODIFIERS_PRE, QUESTIONS, SERP_FEATURES, TLDS, TOPICS } from "./words";
 import type { MagicMode } from "@/lib/reports/keyword-query";
 import type { MockCtx } from "./domain";
-import { mockRankedKeywords } from "./domain";
+import { mockHistory, mockRankedKeywords } from "./domain";
+import { mergeGap, type GapKeyword, type PairwiseLists } from "@/lib/reports/keyword-gap";
 
 const INTENTS: SearchIntent[] = ["informational", "navigational", "commercial", "transactional"];
 
@@ -126,47 +127,30 @@ export function mockKeywordDifficulty(keywords: string[], ctx: MockCtx): Keyword
   return { keywords: keywords.map((k) => mockKeywordMetrics(k, ctx)) };
 }
 
-export function mockKeywordGap(domains: string[], ctx: MockCtx): KeywordGap {
+export function mockKeywordGap(domains: string[], ctx: MockCtx, sample = 200): KeywordGap {
+  // Build mock pairwise lists from each domain's mock rankings, then merge with the real merge logic.
   const pools = domains.map((d) => mockRankedKeywords(d, ctx, 220));
   const r = rng(`${domains.join("|")}|gap`);
-  // Make keyword sets overlap: share a common slice from the first domain.
-  const all = new Map<string, KeywordGapRow>();
-  pools.forEach((pool, di) => {
-    for (const k of pool) {
-      const row = all.get(k.keyword) ?? {
-        keyword: k.keyword, searchVolume: k.searchVolume, cpc: k.cpc, keywordDifficulty: k.keywordDifficulty, intent: k.intent,
-        positions: domains.map(() => null as number | null), category: "unique" as const,
-      };
-      row.positions[di] = k.position;
-      all.set(k.keyword, row);
-    }
-  });
-  const first = pools[0];
-  for (const k of first.slice(0, 120)) {
-    const row = all.get(k.keyword)!;
-    for (let di = 1; di < domains.length; di++) if (r.chance(0.55) && row.positions[di] == null) row.positions[di] = r.int(1, 100);
-  }
-  const rows = [...all.values()].map((row) => {
-    const [mine, ...others] = row.positions;
-    const ranked = others.filter((p): p is number => p != null);
-    let category: KeywordGapRow["category"];
-    if (mine != null && ranked.length === others.length) {
-      const best = Math.min(...ranked);
-      category = mine < best ? "strong" : mine > best + 10 ? "weak" : "shared";
-    } else if (mine == null && ranked.length === others.length) category = "missing";
-    else if (mine == null && ranked.length > 0) category = "untapped";
-    else category = "unique";
-    return { ...row, category };
+  const you = new Map(pools[0].map((k) => [k.keyword, k]));
+  const lists: PairwiseLists[] = domains.slice(1).map((_, idx) => {
+    const ci = idx + 1;
+    const theirs = new Map(pools[ci].map((k) => [k.keyword, k]));
+    // Make some of your keywords shared with this competitor.
+    for (const k of pools[0].slice(0, 120)) if (r.chance(0.55) && !theirs.has(k.keyword)) theirs.set(k.keyword, { ...k, position: r.int(1, 100) });
+    const toKw = (k: RankedKeyword): GapKeyword => ({ keyword: k.keyword, searchVolume: k.searchVolume, cpc: k.cpc, keywordDifficulty: k.keywordDifficulty, intent: k.intent });
+    const byVol = <T extends { kw: GapKeyword }>(a: T[]) => a.sort((x, y) => y.kw.searchVolume - x.kw.searchVolume).slice(0, sample);
+    return {
+      competitor: ci,
+      shared: byVol([...theirs.values()].filter((k) => you.has(k.keyword)).map((k) => ({ kw: toKw(k), you: you.get(k.keyword)!.position, them: k.position }))),
+      onlyComp: byVol([...theirs.values()].filter((k) => !you.has(k.keyword)).map((k) => ({ kw: toKw(k), them: k.position }))),
+      onlyYou: byVol([...you.values()].filter((k) => !theirs.has(k.keyword)).map((k) => ({ kw: toKw(k), you: k.position }))),
+    };
   });
   return {
     domains,
-    totals: domains.map((d, i) => ({ domain: d, keywords: pools[i].length })),
-    overlap: {
-      shared: rows.filter((r) => r.positions.every((p) => p != null)).length,
-      uniqueToFirst: rows.filter((r) => r.positions[0] != null && r.positions.slice(1).every((p) => p == null)).length,
-      uniqueToOthers: rows.filter((r) => r.positions[0] == null).length,
-    },
-    rows: rows.sort((a, b) => b.searchVolume - a.searchVolume),
+    sampleSize: sample,
+    totals: domains.map((d) => ({ domain: d, keywords: mockHistory(d, ctx, 1)[0].organicKeywords })),
+    rows: mergeGap(domains.length, lists),
   };
 }
 

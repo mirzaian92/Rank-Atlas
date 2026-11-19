@@ -6,6 +6,9 @@ import { mockDomainOverview, mockHistoricalTrends, mockOrganicCompetitors, mockO
 import { applyRankedQuery, rankedQuerySchema } from "@/lib/reports/ranked-query";
 import { applyKeywordQuery, keywordQuerySchema, wordGroups } from "@/lib/reports/keyword-query";
 import { fetchKeywordMagic } from "@/lib/dataforseo/services/keyword-magic";
+import { fetchOrganicCompetitors } from "@/lib/dataforseo/services/competitors";
+import { fetchKeywordGap } from "@/lib/dataforseo/services/keyword-gap";
+import { gapQuerySchema } from "@/lib/reports/keyword-gap";
 import { fetchKeywordDifficulty, fetchKeywordOverview } from "@/lib/dataforseo/services/keywords";
 import { fetchOrganicKeywords, fetchOrganicPages, fetchOrganicSummary } from "@/lib/dataforseo/services/organic-research";
 import { mockKeywordDifficulty, mockKeywordGap, mockKeywordMagicPool, mockKeywordOverview, mockSerpAnalysis } from "@/lib/mock/keywords";
@@ -55,7 +58,12 @@ export const REPORTS: Record<ToolId, Handler<unknown>> = {
     },
     notes: [ETV_NOTE],
   }),
-  "organic-competitors": h({ schema: q(domainSchema), mock: (p) => mockOrganicCompetitors(p.q, p), notes: [ETV_NOTE] }),
+  "organic-competitors": h({
+    schema: q(domainSchema),
+    mock: (p) => mockOrganicCompetitors(p.q, p),
+    live: (p) => fetchOrganicCompetitors({ domain: p.q, locationCode: p.locationCode, languageCode: p.languageCode }),
+    notes: [ETV_NOTE],
+  }),
   "keyword-overview": h({
     schema: q(keywordSchema),
     mock: (p) => mockKeywordOverview(p.q, p),
@@ -74,7 +82,11 @@ export const REPORTS: Record<ToolId, Handler<unknown>> = {
     mock: (p) => mockKeywordDifficulty(p.q, p),
     live: (p) => fetchKeywordDifficulty(p.q, p),
   }),
-  "keyword-gap": h({ schema: q(domainListSchema), mock: (p) => mockKeywordGap(p.q, p) }),
+  "keyword-gap": h({
+    schema: q(domainListSchema).and(gapQuerySchema),
+    mock: (p) => mockKeywordGap(p.q, p, p.sample),
+    live: (p) => fetchKeywordGap(p.q, p, p.sample),
+  }),
   "position-tracking": h({ schema: q(domainSchema), mock: (p) => mockPositionTracking(p.q, p), notes: ["Position history comes only from stored daily SERP checks — no backfilled history."] }),
   "backlink-analytics": h({ schema: q(domainSchema), mock: (p) => mockBacklinkAnalytics(p.q, p) }),
   "backlink-gap": h({ schema: q(domainListSchema), mock: (p) => mockBacklinkGap(p.q) }),

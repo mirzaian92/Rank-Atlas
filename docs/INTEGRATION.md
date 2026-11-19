@@ -8,8 +8,8 @@ Integrate **one tool at a time**, in this order. A tool goes live only after eve
 | 2 | Organic Research | **Ready** — server-side paging, sorting and filters; tested against the fake server; not yet run against the real API |
 | 3 | Keyword Overview (+ Keyword Difficulty) | **Ready** — tested against the fake server; not yet run against the real API |
 | 4 | Keyword Magic Tool | **Ready** — server-side paging/sort/filters across 5 modes; tested against the fake server; not yet run against the real API |
-| 5 | Organic Competitors | Mock |
-| 6 | Keyword Gap | Mock |
+| 5 | Organic Competitors | **Ready** — tested against the fake server; not yet run against the real API |
+| 6 | Keyword Gap | **Ready** — pairwise intersections merged; verified against fake-server ground truth; not yet run against the real API |
 | 7 | Position Tracking | Mock |
 | 8 | Backlink Analytics | Mock |
 | 9 | Backlink Gap | Mock |
@@ -288,6 +288,68 @@ The groups are the common words among the keywords on the **current page**, and 
 
 ---
 
+## Integration #5 — Organic Competitors
+
+| Endpoint | Payload | Notes |
+|---|---|---|
+| `dataforseo_labs/google/competitors_domain/live` | `limit: 100`, `order_by: ["intersections,desc"]` | ≈ $0.02. The target is filtered out of its own list. |
+| `dataforseo_labs/google/domain_rank_overview/live` | Same payload as Domain Overview | Target totals; usually cached |
+
+Generic sites (Wikipedia, YouTube, Reddit, …) rank for almost everything, so they're **hidden by default**. Use "Show generic sites" to include them. The filter runs locally (`src/lib/reports/generic-domains.ts`) and doesn't depend on any provider option. Domain Overview's competitor widgets apply the same filter.
+
+**VERIFY:**
+- `order_by` field `intersections`.
+- Item fields `intersections`, `avg_position`, `full_domain_metrics.organic.{count,etv}`.
+
+---
+
+## Integration #6 — Keyword Gap
+
+`domain_intersection` compares exactly two domains. For you vs each competitor there are three requests, each capped at the chosen **sample** (top 200 / 500 / 1,000 by search volume):
+
+| Request | Payload | Gives |
+|---|---|---|
+| Shared | `target1: you, target2: comp, intersections: true` | Your position and theirs |
+| Competitor only | `target1: comp, target2: you, intersections: false` | Their position; you don't rank |
+| You only | `target1: you, target2: comp, intersections: false` | Your position; they don't rank |
+
+All requests also send `item_types: ["organic"]` and `order_by: ["keyword_data.keyword_info.search_volume,desc"]`. Plus one `domain_rank_overview` per domain for total keyword counts (usually cached).
+
+`mergeGap` (`src/lib/reports/keyword-gap.ts`) builds one row per keyword with a position per domain. Tabs follow the usual definitions:
+
+| Tab | Rule |
+|---|---|
+| Shared | Every domain ranks |
+| Missing | Every competitor ranks, you don't |
+| Weak | Everyone ranks, and you rank below every competitor |
+| Strong | Everyone ranks, and you rank above every competitor |
+| Untapped | At least one competitor ranks, you don't |
+| Unique | Only you rank |
+
+**Sampling caveat (shown in the UI):** "not ranking" means "not in the analysed sample". With 3+ domains, a keyword counts as shared by all only if it appears in every pairwise list, so larger samples give fuller overlaps.
+
+**Cost:** `estimateGapCost` = 3 × competitors × ($0.01 + $0.0001 × sample) + $0.0101 × domains. Examples:
+
+| Comparison | Estimate |
+|---|---|
+| 2 domains @ 200 | ≈ $0.11 |
+| 2 domains @ 500 | ≈ $0.20 |
+| 5 domains @ 1,000 | ≈ $1.37 |
+
+The form shows this estimate before you compare. Each request is also checked against the per-request limit, and results are cached for 3 days.
+
+**VERIFY:**
+- Item fields `keyword_data`, `first_domain_serp_element.rank_group`, `second_domain_serp_element.rank_group`.
+- `intersections: false` semantics: keywords target1 ranks for and target2 doesn't.
+
+### Go-live checklist (#5 and #6)
+
+- [ ] Sandbox: competitors list returns, and the target is excluded.
+- [ ] One real 2-domain gap at sample 200: spot-check 5 keywords per tab against Google or the raw JSON.
+- [ ] Add `organic-competitors,keyword-gap` to `DATAFORSEO_LIVE_TOOLS`.
+
+---
+
 ## Usage meter
 
 The header shows today's DataForSEO spend, with a bar against the daily limit. It turns amber at 80% of a limit and red at 100%, with an icon and label as well as colour. Click it to see:
@@ -308,8 +370,6 @@ The meter refreshes every 20 s and immediately after any report that touched the
 | Tool | Endpoints | Notes |
 |---|---|---|
 | Keyword Magic Tool | `labs/google/keyword_suggestions/live` (phrase), `related_keywords/live` (related), `keyword_ideas/live` (broad) | Map the UI modes to these endpoints; build questions with a `filters` regex or from `keyword_suggestions`. |
-| Organic Competitors | `labs/google/competitors_domain/live` | |
-| Keyword Gap | `labs/google/domain_intersection/live` (`target1`, `target2`, `intersections: true/false`) | Pairwise only; for 3–5 domains, combine pairwise results or use `ranked_keywords` per domain. |
 | Position Tracking | `serp/google/organic/task_post` → `tasks_ready` → `task_get/advanced/{id}` | Standard queue, which is cheaper. Daily job writes `RankSnapshot`. History comes **only** from stored snapshots. |
 | Backlink Analytics | `backlinks/summary`, `backlinks`, `referring_domains`, `anchors`, `history` (or `timeseries_summary`) | |
 | Backlink Gap | `backlinks/domain_intersection/live` | |

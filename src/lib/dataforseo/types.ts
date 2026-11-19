@@ -150,3 +150,12 @@ export type DfsSerpResult = {
 
 /** related_keywords items wrap the keyword in `keyword_data`. */
 export type DfsRelatedKeywordItem = { se_type?: string; keyword_data: DfsKeywordItem; depth?: number; related_keywords?: string[] | null };
+
+/** domain_intersection (Labs) item. VERIFY field names first_/second_domain_serp_element. */
+export type DfsIntersectionSerpElement = { type?: string; rank_group?: number | null; rank_absolute?: number | null; url?: string | null; etv?: number | null };
+export type DfsDomainIntersectionItem = {
+  se_type?: string;
+  keyword_data: DfsKeywordItem;
+  first_domain_serp_element?: DfsIntersectionSerpElement | null;
+  second_domain_serp_element?: DfsIntersectionSerpElement | null;
+};

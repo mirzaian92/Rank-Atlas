@@ -217,7 +217,13 @@ export function mockOrganicPages(domain: string, ctx: MockCtx, page: number, siz
 
 export function mockOrganicCompetitors(domain: string, ctx: MockCtx): OrganicCompetitors {
   const h = mockHistory(domain, ctx, 1)[0];
-  return { domain, target: { organicKeywords: h.organicKeywords, organicEtv: h.organicEtv }, competitors: mockCompetitors(domain, ctx, 40) };
+  const comps = mockCompetitors(domain, ctx, 40);
+  // Generic sites show up as competitors for almost everything (hidden by default in the UI).
+  const generic = ["wikipedia.org", "youtube.com", "reddit.com"].map((d, i) => ({
+    domain: d, commonKeywords: Math.round(h.organicKeywords * (0.3 - i * 0.05)), organicKeywords: 40_000_000 / (i + 1),
+    organicEtv: 900_000_000 / (i + 1), avgPosition: 12 + i * 3, competitionLevel: 0.02 + i * 0.005,
+  }));
+  return { domain, target: { organicKeywords: h.organicKeywords, organicEtv: h.organicEtv }, competitors: [...comps, ...generic] };
 }
 
 export function mockHistoricalTrends(domain: string, ctx: MockCtx): HistoricalTrends {
