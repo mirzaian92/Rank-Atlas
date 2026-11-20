@@ -132,9 +132,18 @@ Save any login and password in Settings, then open `/seo/domain-overview?q=fake.
 
 DataForSEO also offers a free sandbox: set `DATAFORSEO_USE_SANDBOX=true` to hit `sandbox.dataforseo.com`.
 
-### Known dev-server quirk
+### Dev-server reload loop (fixed)
 
-Next.js 16's Turbopack dev server sometimes gets stuck in a full-reload loop ("[Fast Refresh] rebuilding" on every page load), usually after files change while it is compiling. Restart `npm run dev` to fix it. (Diagnosis so far: on each page load the HMR socket reports `building`, then `reloadPage: HMR hash mismatch`, and the chunk's `hmrVersion` bumps by one. Disabling `logging.browserToTerminal` did not stop the trigger.) If it keeps happening, use `npm run dev:webpack`, which compiles more slowly but has not shown the problem. Production builds are not affected.
+Next 16.4's persistent Turbopack dev cache can restore a stale HMR state after `next dev` restarts, especially when environment variables changed between runs. Every page load then gets `reloadPage: HMR hash mismatch` and reloads, in an endless loop. This is upstream bug [vercel/next.js#100267](https://github.com/vercel/next.js/issues/100267), still open as of Nov 2026.
+
+`next.config.ts` sets `experimental.turbopackFileSystemCacheForDev: false`. Measured in this repo, with an environment variable changed between restarts:
+
+| Dev cache | Restarts with unexpected reloads | First page after a restart |
+|---|---|---|
+| On (Next's default) | 7 of 8 | ≈ 0.7 s |
+| Off (this repo) | **0 of 8** | ≈ 3.7 s |
+
+Later page loads and production builds are unaffected. Re-enable the cache once the upstream issue is fixed. `npm run dev:webpack` remains available as an alternative.
 
 ## Deploying to Vercel
 
