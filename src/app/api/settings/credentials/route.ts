@@ -7,7 +7,7 @@ import { encryptionConfigured } from "@/lib/server/crypto";
 
 export const dynamic = "force-dynamic";
 
-const body = z.object({ login: z.string().trim().min(3).max(200), password: z.string().min(6).max(200) });
+const body = z.object({ login: z.string().trim().min(3).max(200), password: z.string().trim().min(6).max(200) });
 
 export async function PUT(req: NextRequest) {
   const parsed = body.safeParse(await req.json().catch(() => null));
