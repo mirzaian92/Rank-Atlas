@@ -1,9 +1,13 @@
 import "server-only";
 import { PrismaClient } from "@prisma/client";
+import { resolveDatabaseUrl } from "./db-url";
+
+export const dbUrl = resolveDatabaseUrl();
+if (dbUrl) process.env.DATABASE_URL = dbUrl.url;
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({ log: ["error"] });
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({ log: ["error"], ...(dbUrl ? { datasourceUrl: dbUrl.url } : {}) });
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 let lastCheck = 0;
@@ -17,7 +21,7 @@ let pending: Promise<boolean> | null = null;
  * saved credentials as missing.)
  */
 export async function dbAvailable(): Promise<boolean> {
-  if (!process.env.DATABASE_URL) return false;
+  if (!dbUrl) return false;
   if (pending) return pending;
   if (lastCheck !== 0 && Date.now() - lastCheck < 10_000) return lastOk;
   pending = (async () => {

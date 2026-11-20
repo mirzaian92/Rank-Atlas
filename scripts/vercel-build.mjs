@@ -6,14 +6,17 @@
 // break migrations; they also set DATABASE_URL_UNPOOLED (direct). Migrations use the direct URL
 // when it exists; the running app keeps using the pooled DATABASE_URL.
 import { execSync } from "node:child_process";
+import { resolveDatabaseUrl, resolveDirectUrl } from "./resolve-db-url.mjs";
 
 const run = (cmd, env = process.env) => execSync(cmd, { stdio: "inherit", env });
 
-if (process.env.DATABASE_URL) {
-  const direct = process.env.DATABASE_URL_UNPOOLED || process.env.POSTGRES_URL_NON_POOLING;
-  console.log(`[vercel-build] applying migrations (${direct ? "direct connection" : "DATABASE_URL"})`);
-  run("npx prisma migrate deploy", direct ? { ...process.env, DATABASE_URL: direct } : process.env);
+const db = resolveDatabaseUrl();
+if (db) {
+  const direct = resolveDirectUrl();
+  console.log(`[vercel-build] database found in ${db.name}; applying migrations (${direct ? "direct connection" : "pooled"})`);
+  run("npx prisma migrate deploy", { ...process.env, DATABASE_URL: direct || db.url });
 } else {
-  console.log("[vercel-build] DATABASE_URL not set — skipping migrations (mock-only deploy)");
+  const names = Object.keys(process.env).filter((n) => /DATABASE|POSTGRES|^PG|NEON|STORAGE/.test(n));
+  console.log(`[vercel-build] no Postgres URL found — skipping migrations (mock-only deploy). DB-like vars present: ${names.join(", ") || "none"}`);
 }
 run("npx next build");
