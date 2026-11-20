@@ -11,7 +11,7 @@ const body = z.object({ login: z.string().trim().min(3).max(200), password: z.st
 export async function PUT(req: NextRequest) {
   const parsed = body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: { code: "VALIDATION_ERROR", message: "Enter your API login and API password." } }, { status: 400 });
-  if (!(await dbAvailable())) return NextResponse.json({ error: { code: "INTERNAL", message: "Database is not reachable. Check DATABASE_URL, or set DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD in .env." } }, { status: 503 });
+  if (!(await dbAvailable())) return NextResponse.json({ error: { code: "INTERNAL", message: process.env.DATABASE_URL ? "Database is not reachable. Check that DATABASE_URL is correct and the database is running." : "No database is connected (DATABASE_URL is not set), so credentials can't be saved here. Either add a Postgres database (on Vercel: Storage → Create Database, then redeploy), or set DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD as environment variables (on Vercel: Settings → Environment Variables, then redeploy)." } }, { status: 503 });
   if (!encryptionConfigured()) return NextResponse.json({ error: { code: "INTERNAL", message: "APP_ENCRYPTION_KEY is missing or invalid; credentials cannot be stored securely." } }, { status: 503 });
   await saveCredentials(parsed.data.login, parsed.data.password);
   return NextResponse.json({ credentials: await credentialStatus() });
