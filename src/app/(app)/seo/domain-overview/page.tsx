@@ -24,6 +24,7 @@ import { Segmented } from "@/components/ui/tabs";
 import { useSearchState } from "@/lib/client/use-search-state";
 import { isGenericDomain } from "@/lib/reports/generic-domains";
 import { fmtCompact, fmtCurrency, fmtDate, fmtNumber, fmtPercent, pctChange } from "@/lib/utils";
+import { estimateHistoryCost } from "@/lib/reports/history";
 
 export default function DomainOverviewPage() {
   return (
@@ -36,9 +37,15 @@ export default function DomainOverviewPage() {
 function DomainOverviewInner() {
   const { get, setParams } = useSearchState();
   const range = (get("range") as RangeValue) ?? "1y";
+  // Optional, separately billed sections. Stored in the URL so the choice survives reloads and shared links.
+  const extra: Record<string, string> = {};
+  if (get("trend") === "1") extra.trend = "1";
+  if (get("anchors") === "1") extra.anchors = "1";
   return (
     <ReportView<DomainOverview>
       tool="domain-overview"
+      extraParams={extra}
+      keepSubject
       isEmpty={(d) => d.summary.organicKeywords === 0 && d.summary.paidKeywords === 0 && !d.summary.backlinks}
       actions={
         <>
@@ -149,7 +156,17 @@ function Dashboard({ data, meta, range }: { data: DomainOverview; meta: ReportMe
 
       {/* Trend + distribution */}
       <div className="grid gap-4 xl:grid-cols-3">
-        <TrafficTrend series={series} mock={mock} className="xl:col-span-2" />
+        {data.historyLoaded === false ? (
+          <LoadOptional
+            className="xl:col-span-2"
+            title="Traffic & keyword trend"
+            text="Monthly history is billed per month by DataForSEO, so it loads only when you ask. Month-over-month changes on the cards above need it too."
+            cost={estimateHistoryCost(12) - 0.024}
+            onLoad={() => setParams({ trend: "1" }, { replace: true })}
+          />
+        ) : (
+          <TrafficTrend series={series} mock={mock} className="xl:col-span-2" />
+        )}
         <Section title="Organic positions" mock={mock} info="Number of keywords ranking in each position range." description={isHistorical ? fmtDate(month, { month: "long", year: "numeric" }) : "Current month"}>
           <BarList
             items={dist.map((d) => ({ key: d.bucket, label: POSITION_LABEL[d.bucket] ?? d.bucket, value: d.count }))}
@@ -166,7 +183,9 @@ function Dashboard({ data, meta, range }: { data: DomainOverview; meta: ReportMe
 
       <div className="grid gap-4 xl:grid-cols-3">
         <Section className="xl:col-span-2" title="Keywords by position over time" mock={mock} info="Monthly count of ranking keywords by position range, from historical rank data.">
-          {series.length > 1 ? (
+          {data.historyLoaded === false ? (
+            <EmptyState compact title="History not loaded" description="Load the trend above to see positions over time." />
+          ) : series.length > 1 ? (
             <TrendChart
               data={series}
               stacked
@@ -257,7 +276,7 @@ function Dashboard({ data, meta, range }: { data: DomainOverview; meta: ReportMe
       </div>
 
       {/* Backlinks */}
-      <BacklinkBlock data={data} mock={mock} link={link} />
+      <BacklinkBlock data={data} mock={mock} link={link} onLoadAnchors={() => setParams({ anchors: "1" }, { replace: true })} />
 
       {data.countries && data.countries.length > 0 && (
         <Section title="Organic traffic by country" mock={mock} info="Estimated organic traffic per Google market for this domain." flush>
@@ -295,6 +314,22 @@ function TrafficTrend({ series, mock, className }: { series: DomainHistoryPoint[
   );
 }
 
+/** Placeholder for an optional, separately billed section, with an explicit cost before loading. */
+function LoadOptional({ title, text, cost, onLoad, className, bare }: { title: string; text: string; cost: number; onLoad: () => void; className?: string; bare?: boolean }) {
+  const [loading, setLoading] = useState(false);
+  const body = (
+    <div className="flex flex-col items-center justify-center gap-3 px-5 py-10 text-center">
+      {bare && <div className="text-[13px] font-semibold text-ink">{title}</div>}
+      <p className="max-w-md text-[12.5px] text-ink-3">{text}</p>
+      <Button size="sm" variant="outline" disabled={loading} onClick={() => { setLoading(true); onLoad(); }}>
+        {loading ? "Loading…" : <>Load · ≈ {fmtCurrency(cost, 2)}</>}
+      </Button>
+      <p className="text-[11px] text-ink-3">The rest of this report is re-used from cache, so only this part is billed.</p>
+    </div>
+  );
+  return bare ? body : <Section className={className} title={title}>{body}</Section>;
+}
+
 function Movement({ icon: Icon, label, value, tone }: { icon: React.ComponentType<{ className?: string }>; label: string; value: number; tone: "brand" | "good" | "bad" | "muted" }) {
   const c = { brand: "text-brand", good: "text-good-text", bad: "text-[#b42318]", muted: "text-ink-3" }[tone];
   return (
@@ -305,7 +340,7 @@ function Movement({ icon: Icon, label, value, tone }: { icon: React.ComponentTyp
   );
 }
 
-function BacklinkBlock({ data, mock, link }: { data: DomainOverview; mock: boolean; link: (h: string) => string }) {
+function BacklinkBlock({ data, mock, link, onLoadAnchors }: { data: DomainOverview; mock: boolean; link: (h: string) => string; onLoadAnchors: () => void }) {
   const bp = data.backlinkProfile;
   return (
     <div className="grid gap-4 xl:grid-cols-3">
@@ -326,7 +361,9 @@ function BacklinkBlock({ data, mock, link }: { data: DomainOverview; mock: boole
         ) : <EmptyState compact title="Backlink data unavailable" />}
       </Section>
       <Section title="Top anchors" mock={mock} flush>
-        {bp?.topAnchors.length ? (
+        {data.anchorsLoaded === false ? (
+          <LoadOptional bare title="Anchors not loaded" text="Loaded on request to keep lookups cheap." cost={0.024} onLoad={onLoadAnchors} />
+        ) : bp?.topAnchors.length ? (
           <DataTable compact data={bp.topAnchors} columns={anchorColumns} />
         ) : <EmptyState compact title="No anchors" />}
       </Section>

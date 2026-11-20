@@ -18,9 +18,11 @@ import { fmtCurrency } from "@/lib/utils";
  * Wraps every report page: header, query/market from the URL, loading / error / empty
  * handling, and the data-source label. Pages only implement `children(data, meta)`.
  */
-export function ReportView<T>({ tool, extraParams, actions, children, isEmpty, skeleton, subtitle, landing, above }: {
+export function ReportView<T>({ tool, extraParams, actions, children, isEmpty, skeleton, subtitle, landing, above, keepSubject }: {
   tool: ToolId;
   extraParams?: Record<string, string | undefined>;
+  /** Keep showing the current result while a variant of the same query (same subject/market) loads. */
+  keepSubject?: boolean;
   actions?: React.ReactNode;
   children: (data: T, meta: ReportMeta) => React.ReactNode;
   isEmpty?: (data: T) => boolean;
@@ -35,7 +37,7 @@ export function ReportView<T>({ tool, extraParams, actions, children, isEmpty, s
   const { q, market, language, baseParams, get } = useSearchState();
   const sim = get("__state");
   const params = { ...baseParams, ...extraParams, ...(sim ? { __state: sim } : {}) };
-  const query = useReport<T>(tool, params, Boolean(q));
+  const query = useReport<T>(tool, params, Boolean(q), keepSubject ? { keepPrevious: "same-subject" } : {});
 
   return (
     <div className="mx-auto max-w-[1440px] space-y-4">

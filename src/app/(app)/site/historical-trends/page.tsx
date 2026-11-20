@@ -70,7 +70,7 @@ function Inner() {
             options={(["1y", "2y", "5y"] as const).map((sp) => ({
               value: sp,
               label: (
-                <span title={live ? (sp === "1y" ? "Shared with Domain Overview / Organic Research — usually free from cache" : `Organic history is billed per month: ≈ ${fmtCurrency(estimateHistoryCost(HISTORY_SPANS[sp]), 2)} unless cached`) : undefined}>
+                <span title={live ? (sp === "1y" ? "Shared with Organic Research and Domain Overview (when its trend is loaded) — often free from cache" : `Organic history is billed per month: ≈ ${fmtCurrency(estimateHistoryCost(HISTORY_SPANS[sp]), 2)} unless cached`) : undefined}>
                   {sp === "1y" ? "1 year" : sp === "2y" ? "2 years" : "5 years"}
                   {live && sp !== "1y" ? ` · ≈${fmtCurrency(estimateHistoryCost(HISTORY_SPANS[sp]), 2)}` : ""}
                 </span>

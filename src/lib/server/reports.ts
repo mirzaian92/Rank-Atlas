@@ -41,9 +41,14 @@ function h<P>(x: Handler<P>) {
 
 export const REPORTS: Record<ToolId, Handler<unknown>> = {
   "domain-overview": h({
-    schema: q(domainSchema).extend({ months: z.coerce.number().int().min(1).max(60).default(12) }),
+    schema: q(domainSchema).extend({
+      months: z.coerce.number().int().min(1).max(60).default(12),
+      // Optional, separately billed sections (history is charged per month).
+      trend: z.enum(["0", "1"]).default("0"),
+      anchors: z.enum(["0", "1"]).default("0"),
+    }),
     mock: (p) => mockDomainOverview(p.q, p),
-    live: (p) => fetchDomainOverview({ domain: p.q, locationCode: p.locationCode, languageCode: p.languageCode, months: p.months }),
+    live: (p) => fetchDomainOverview({ domain: p.q, locationCode: p.locationCode, languageCode: p.languageCode, months: p.months, trend: p.trend === "1", anchors: p.anchors === "1" }),
     notes: [ETV_NOTE],
   }),
   "organic-research": h({

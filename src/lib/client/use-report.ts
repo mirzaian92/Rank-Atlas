@@ -27,13 +27,21 @@ export async function fetchReport<T>(tool: ToolId, params: Record<string, string
 }
 
 /** Fetch a report through /api/reports/:tool. Disabled until `enabled` (usually: a query is present). */
-export function useReport<T>(tool: ToolId, params: Record<string, string | undefined>, enabled = true, opts: { keepPrevious?: boolean } = {}) {
+/** Keep the previous result on screen only while the subject and market are unchanged. */
+function sameSubject(a: unknown, b: Record<string, string | undefined>) {
+  const p = (Array.isArray(a) ? a[2] : undefined) as Record<string, string | undefined> | undefined;
+  return Boolean(p && p.q === b.q && p.db === b.db && p.lang === b.lang);
+}
+
+export function useReport<T>(tool: ToolId, params: Record<string, string | undefined>, enabled = true, opts: { keepPrevious?: boolean | "same-subject" } = {}) {
   return useQuery<ReportResponse<T>, ClientReportError>({
     queryKey: ["report", tool, params],
     queryFn: () => fetchReport<T>(tool, params),
     enabled,
     // Paged tables keep showing the current page while the next one loads.
-    placeholderData: opts.keepPrevious ? keepPreviousData : undefined,
+    placeholderData: opts.keepPrevious === "same-subject"
+      ? (prev, prevQuery) => (prev && sameSubject(prevQuery?.queryKey, params) ? prev : undefined)
+      : opts.keepPrevious ? keepPreviousData : undefined,
     staleTime: 5 * 60_000,
     retry: (count, err) => count < 1 && (err.code === "API_UNAVAILABLE" || err.code === "INTERNAL"),
   });

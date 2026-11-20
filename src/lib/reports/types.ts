@@ -67,6 +67,10 @@ export type DomainOverview = {
   positionDistribution: { bucket: PositionBucket; count: number }[];
   movement: { isNew: number; isUp: number; isDown: number; isLost: number };
   history: DomainHistoryPoint[];
+  /** False when the (billed-per-month) history was not requested; the UI offers to load it. */
+  historyLoaded?: boolean;
+  /** False when anchors were not requested; the UI offers to load them. */
+  anchorsLoaded?: boolean;
   topKeywords: RankedKeyword[];
   topKeywordsTotal: number;
   competitors: CompetitorRow[];
