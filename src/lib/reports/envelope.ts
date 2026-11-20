@@ -19,6 +19,8 @@ export type ReportMeta = {
   endpoints: string[];
   /** Caveats shown under the page header (e.g. sample sizes). */
   notes?: string[];
+  /** Why this response is mock data (only on mock responses). */
+  mockReason?: string;
 };
 
 export type ReportResponse<T> = { meta: ReportMeta; data: T };

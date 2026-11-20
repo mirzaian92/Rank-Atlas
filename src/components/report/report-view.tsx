@@ -84,6 +84,11 @@ export function PageHeader({ title, subject, market, meta, actions, description 
             {subject && <span className="text-ink-2">: <span className="text-ink">{subject}</span></span>}
           </h1>
           {meta && <SourceBadge source={meta.source} />}
+          {meta?.source === "mock" && meta.mockReason && (
+            <Hint content={<span>{meta.mockReason} <span className="opacity-80">Details in Settings → Integrations.</span></span>}>
+              <a href="/settings?tab=integrations" className="text-[12px] text-ink-3 underline decoration-dotted underline-offset-2 hover:text-ink">Why mock data?</a>
+            </Hint>
+          )}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-ink-3">
           {subject && market && <span>{market}</span>}

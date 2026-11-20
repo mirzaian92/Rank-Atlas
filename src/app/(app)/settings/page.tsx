@@ -24,7 +24,12 @@ type Settings = {
   credentials: { configured: boolean; source: "env" | "database" | null; loginMasked: string | null; lastVerifiedAt: string | null; lastBalanceUsd: number | null; databaseAvailable: boolean; encryptionConfigured: boolean };
   limits: { dailyUsd: number; monthlyUsd: number; maxRequestUsd: number; hardStop: boolean };
   cache: { ttlMultiplier: number; enabled: boolean };
-  live: { enabled: boolean; sandbox: boolean; tools: { id: string; label: string; order: number; integration: string; listed: boolean; endpoints: string[] }[] };
+  live: {
+    enabled: boolean;
+    sandbox: boolean;
+    env: { liveEnabledRaw: string | null; liveEnabled: boolean; liveToolsRaw: string | null; liveTools: string[] };
+    tools: { id: string; label: string; order: number; integration: string; listed: boolean; endpoints: string[]; mockReason: string | null }[];
+  };
 };
 type Usage = {
   usage: null | {
@@ -267,32 +272,51 @@ function CacheTab({ s }: { s: Settings }) {
 
 function Integrations({ s }: { s: Settings }) {
   const tools = [...s.live.tools].sort((a, b) => a.order - b.order);
+  const env = s.live.env;
+  const allIds = tools.map((t) => t.id).join(",");
+  const show = (v: string | null) => (v == null ? <span className="text-critical">not set</span> : <code className="rounded bg-page px-1">{JSON.stringify(v)}</code>);
   return (
     <div className="space-y-4">
-      <Section title="Live mode" description="Live DataForSEO requests require all of the conditions below. Until then every report serves labelled mock data.">
-        <ol className="list-decimal space-y-1 pl-5 text-[13px] text-ink-2">
-          <li>Credentials configured and verified (API credentials tab).</li>
-          <li><code>DATAFORSEO_LIVE_ENABLED=true</code> in <code>.env</code> — currently <b>{s.live.enabled ? "true" : "false"}</b>.</li>
-          <li>The tool listed in <code>DATAFORSEO_LIVE_TOOLS</code> (comma separated).</li>
-          <li>The tool has a reviewed live implementation (status “Ready”).</li>
-        </ol>
-        <p className="mt-3 text-xs text-ink-3">Tip: set <code>DATAFORSEO_USE_SANDBOX=true</code> to test integrations against the free DataForSEO sandbox, which returns placeholder data.</p>
+      <Section title="Why live or mock?" description="What this server actually sees. Environment variables change only after a restart (local) or a redeploy (Vercel).">
+        <ul className="space-y-2 text-[13px]">
+          <li className="flex flex-wrap items-center gap-2">
+            {env.liveEnabled ? <CheckCircle2 className="size-4 text-good" /> : <CircleAlert className="size-4 text-critical" />}
+            <code>DATAFORSEO_LIVE_ENABLED</code> = {show(env.liveEnabledRaw)} → <b>{env.liveEnabled ? "on" : "off"}</b>
+            {!env.liveEnabled && <span className="text-ink-3">(needs true)</span>}
+          </li>
+          <li className="flex flex-wrap items-center gap-2">
+            {env.liveTools.length ? <CheckCircle2 className="size-4 text-good" /> : <CircleAlert className="size-4 text-critical" />}
+            <code>DATAFORSEO_LIVE_TOOLS</code> = {show(env.liveToolsRaw)} → <b>{env.liveTools.length ? env.liveTools.join(", ") : "no tools"}</b>
+          </li>
+          <li className="flex flex-wrap items-center gap-2">
+            {s.credentials.configured ? <CheckCircle2 className="size-4 text-good" /> : <CircleAlert className="size-4 text-critical" />}
+            DataForSEO credentials: <b>{s.credentials.configured ? `saved (${s.credentials.source})` : "not saved — add them in the API credentials tab"}</b>
+          </li>
+        </ul>
+        <p className="mt-3 text-xs text-ink-3">
+          To make every tool live, set <code>DATAFORSEO_LIVE_TOOLS</code> to <code className="select-all break-all rounded bg-page px-1">{allIds}</code>. Quotes, spaces and capital letters are tolerated.
+          {s.live.sandbox && " Sandbox mode is on (DATAFORSEO_USE_SANDBOX): live tools return DataForSEO's placeholder data."}
+        </p>
       </Section>
-      <Section flush title="Integration plan" description="Tools are integrated one at a time in this order.">
+      <Section flush title="Tools" description="Each tool's current data source on this server.">
         <div className="divide-y divide-border">
-          {tools.map((t) => (
-            <div key={t.id} className="flex flex-wrap items-start gap-3 px-5 py-3">
-              <span className="grid size-6 place-items-center rounded-full bg-page text-xs font-semibold text-ink-2">{t.order}</span>
-              <div className="min-w-[180px] flex-1">
-                <div className="flex items-center gap-2 text-[13px] font-semibold">
-                  {t.label}
-                  <Badge variant={t.integration === "mock" ? "mock" : t.integration === "live" ? "live" : "default"}>{t.integration === "mock" ? "Mock" : t.integration === "ready" ? "Ready" : "Live"}</Badge>
-                  {t.listed && <Badge variant="live">listed</Badge>}
+          {tools.map((t) => {
+            const live = !t.mockReason;
+            return (
+              <div key={t.id} className="flex flex-wrap items-start gap-3 px-5 py-3">
+                <span className="grid size-6 place-items-center rounded-full bg-page text-xs font-semibold text-ink-2">{t.order}</span>
+                <div className="min-w-[180px] flex-1">
+                  <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold">
+                    {t.label}
+                    <code className="text-[11px] font-normal text-ink-3">{t.id}</code>
+                    <Badge variant={live ? "live" : "mock"}>{live ? (s.credentials.configured ? "Live" : "Live — credentials missing") : "Mock"}</Badge>
+                  </div>
+                  {!live && <p className="mt-0.5 text-[12px] text-ink-2">{t.mockReason}</p>}
+                  <ul className="mt-1 space-y-0.5 font-mono text-[11px] text-ink-3">{t.endpoints.map((e) => <li key={e}>{e}</li>)}</ul>
                 </div>
-                <ul className="mt-1 space-y-0.5 font-mono text-[11px] text-ink-3">{t.endpoints.map((e) => <li key={e}>{e}</li>)}</ul>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Section>
     </div>

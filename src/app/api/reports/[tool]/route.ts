@@ -47,7 +47,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ tool: strin
     let data = handler.mock(params);
     if (process.env.NODE_ENV !== "production" && sp.get("__state") === "empty") data = emptyLike(data);
     return NextResponse.json<ReportResponse<unknown>>({
-      meta: { ...base, source: "mock", costUsd: 0, endpoints: [], notes: [...(handler.notes ?? [])] },
+      meta: { ...base, source: "mock", costUsd: 0, endpoints: [], notes: [...(handler.notes ?? [])], mockReason: gate.reason || (handler.live ? undefined : "This tool has no live integration yet.") },
       data,
     });
   }

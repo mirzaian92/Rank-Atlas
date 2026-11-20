@@ -16,3 +16,31 @@ describe("mapProviderStatus (per DataForSEO appendix/errors)", () => {
     expect(NO_RESULTS_CODES.has(40102)).toBe(true);
   });
 });
+
+import { isToolLive, liveEnabledGlobally, liveToolList } from "@/lib/dataforseo/mode";
+describe("live-mode env parsing (dashboard-typed values)", () => {
+  it("accepts quoted / cased / padded values", () => {
+    for (const v of ["true", '"true"', "'true'", " TRUE ", "1", "yes"]) {
+      process.env.DATAFORSEO_LIVE_ENABLED = v;
+      expect(liveEnabledGlobally()).toBe(true);
+    }
+    for (const v of ["false", '"false"', "", "nope"]) {
+      process.env.DATAFORSEO_LIVE_ENABLED = v;
+      expect(liveEnabledGlobally()).toBe(false);
+    }
+  });
+  it("parses tool lists with quotes, spaces, newlines and casing", () => {
+    process.env.DATAFORSEO_LIVE_TOOLS = '"Domain-Overview, keyword-overview\nkeyword-gap"';
+    expect(liveToolList()).toEqual(["domain-overview", "keyword-overview", "keyword-gap"]);
+  });
+  it("explains why a tool is mock, including the value it saw", () => {
+    process.env.DATAFORSEO_LIVE_ENABLED = "false";
+    expect(isToolLive("domain-overview").reason).toContain('"false"');
+    delete process.env.DATAFORSEO_LIVE_ENABLED;
+    expect(isToolLive("domain-overview").reason).toContain("not set");
+    process.env.DATAFORSEO_LIVE_ENABLED = "true";
+    process.env.DATAFORSEO_LIVE_TOOLS = "keyword-overview";
+    expect(isToolLive("domain-overview").reason).toContain("currently: keyword-overview");
+    expect(isToolLive("keyword-overview").live).toBe(true);
+  });
+});

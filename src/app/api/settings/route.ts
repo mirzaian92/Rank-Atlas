@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { credentialStatus } from "@/lib/dataforseo/credentials";
 import { getCacheSettings, getSpendingLimits } from "@/lib/server/settings";
-import { liveEnabledGlobally, liveToolList } from "@/lib/dataforseo/mode";
+import { isToolLive, liveEnabledGlobally, liveEnvDiagnostics, liveToolList } from "@/lib/dataforseo/mode";
 import { TOOLS } from "@/lib/config/tools";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,8 @@ export async function GET() {
     live: {
       enabled: liveEnabledGlobally(),
       sandbox: process.env.DATAFORSEO_USE_SANDBOX === "true",
-      tools: TOOLS.map((t) => ({ id: t.id, label: t.label, order: t.order, integration: t.integration, listed: liveTools.includes(t.id), endpoints: t.endpoints })),
+      env: liveEnvDiagnostics(),
+      tools: TOOLS.map((t) => ({ id: t.id, label: t.label, order: t.order, integration: t.integration, listed: liveTools.includes(t.id), endpoints: t.endpoints, mockReason: isToolLive(t.id).reason || null })),
     },
   });
 }
