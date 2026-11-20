@@ -7,6 +7,7 @@ import { getCredentials } from "@/lib/dataforseo/credentials";
 import type { DfsKeywordItem, DfsLabsItemsResult, DfsSerpResult } from "@/lib/dataforseo/types";
 import { ReportError } from "@/lib/reports/envelope";
 import { TRACK_DEPTHS, buildTrackingReport, matchesDomain } from "@/lib/reports/tracking";
+import { resolveSerpTarget } from "@/lib/dataforseo/normalize/keywords";
 import { MARKETS } from "@/lib/config/markets";
 import { looksLikeDomain, normalizeDomain } from "@/lib/utils";
 import { hashString } from "@/lib/mock/rng";
@@ -183,7 +184,7 @@ export async function collectResults(opts: { projectId?: string; limit?: number 
       const r = await dfsCall<DfsSerpResult>("serpOrganicTaskGetAdvanced", null, { pathSuffix: `/${s.taskId}` });
       const serp = r.result[0];
       const items = serp?.items ?? [];
-      const hit = items.find((it) => it.type === "organic" && matchesDomain(it.domain, s.keyword.project.domain));
+      const hit = items.map((it) => ({ ...it, ...resolveSerpTarget(it) })).find((it) => it.type === "organic" && matchesDomain(it.domain, s.keyword.project.domain));
       await prisma.rankSnapshot.update({
         where: { id: s.id },
         data: {

@@ -44,6 +44,9 @@ export const ONPAGE_ISSUES: Record<string, IssueMeta> = {
   no_doctype: { title: "Missing doctype", severity: "notice", category: "Markup", description: "Pages without a <!DOCTYPE> declaration." },
   no_encoding_meta_tag: { title: "Missing encoding declaration", severity: "notice", category: "Markup", description: "Pages without a charset declaration." },
   low_readability_rate: { title: "Low readability", severity: "notice", category: "Content", description: "Text that is hard to read." },
+  irrelevant_title: { title: "Title doesn't match page content", severity: "notice", category: "On-page", description: "The title has little relation to the page's text." },
+  irrelevant_description: { title: "Meta description doesn't match page content", severity: "notice", category: "On-page", description: "The meta description has little relation to the page's text." },
+  irrelevant_meta_keywords: { title: "Meta keywords don't match page content", severity: "notice", category: "On-page", description: "Meta keywords not found in the page's text (search engines ignore this tag)." },
 };
 
 const SEVERITY_ORDER = { error: 0, warning: 1, notice: 2 } as const;

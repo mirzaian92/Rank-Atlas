@@ -96,7 +96,7 @@ describe("risk rules", () => {
     expect(d[9].count).toBe(1);
   });
   it("estimates audit cost", () => {
-    expect(estimateAuditCost(1000)).toBeCloseTo(0.1, 6);
+    expect(estimateAuditCost(1000)).toBeCloseTo(0.024 * 2 + 0.000036 * 2000, 6); // verified prices
   });
 });
 

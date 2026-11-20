@@ -15,7 +15,8 @@ export type MagicMode = (typeof MAGIC_MODES)[number];
 
 /** Keywords that start with a question word (used by the Questions mode in mock and live). */
 export const QUESTION_WORDS = ["how", "what", "why", "when", "where", "who", "which", "can", "is", "are", "does", "do", "should", "will"] as const;
-export const QUESTION_REGEX = `^(${QUESTION_WORDS.join("|")}) `;
+// \b (word boundary) rather than a trailing space: DataForSEO trims the value, so "^(…|do) " matched "download".
+export const QUESTION_REGEX = `^(${QUESTION_WORDS.join("|")})\\b`;
 export const isQuestion = (k: string) => new RegExp(QUESTION_REGEX).test(k.toLowerCase());
 
 const optNum = (min: number, max: number) =>

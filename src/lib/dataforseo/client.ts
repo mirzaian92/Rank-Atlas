@@ -37,7 +37,7 @@ const inflight = new Map<string, Promise<DfsCallResult<unknown>>>();
 
 export async function dfsCall<R>(key: EndpointKey, payload: Record<string, unknown> | null, opts: DfsCallOptions = {}): Promise<DfsCallResult<R>> {
   // Identical concurrent requests share one provider call (avoids paying twice).
-  const flightKey = cacheKey(ENDPOINTS[key].path + (opts.pathSuffix ?? ""), payload) + (opts.bypassCache ? ":nocache" : "");
+  const flightKey = cacheKey(apiBaseUrl() + ENDPOINTS[key].path + (opts.pathSuffix ?? ""), payload) + (opts.bypassCache ? ":nocache" : "");
   const existing = inflight.get(flightKey);
   if (existing) return existing as Promise<DfsCallResult<R>>;
   const p = dfsCallInner<R>(key, payload, opts).finally(() => inflight.delete(flightKey));
@@ -58,7 +58,8 @@ async function dfsCallInner<R>(key: EndpointKey, payload: Record<string, unknown
 
   const cacheSettings = await getCacheSettings();
   const ttl = Math.round(ep.ttl * cacheSettings.ttlMultiplier);
-  const ck = cacheKey(path, payload);
+  // The base URL is part of the key so sandbox data can never be served as production data.
+  const ck = cacheKey(apiBaseUrl() + path, payload);
   if (ttl > 0 && cacheSettings.enabled && !opts.bypassCache) {
     const hit = await cacheGet<R[]>(ck);
     if (hit) {

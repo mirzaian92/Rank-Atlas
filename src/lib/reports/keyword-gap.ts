@@ -17,10 +17,10 @@ export const gapQuerySchema = z.object({
   sample: z.coerce.number().int().refine((n) => (GAP_SAMPLES as readonly number[]).includes(n), "Invalid sample size").default(200),
 });
 
-/** Pre-flight estimate in USD (uncached). Labs: ~$0.01 per request + ~$0.0001 per row. */
+/** Pre-flight estimate in USD (uncached). Labs: $0.012 per request + $0.00012 per row. */
 export function estimateGapCost(domainCount: number, sample: number): number {
   const competitors = Math.max(0, domainCount - 1);
-  return competitors * 3 * (0.01 + 0.0001 * sample) + domainCount * 0.0101;
+  return competitors * 3 * (0.012 + 0.00012 * sample) + domainCount * 0.01212;
 }
 
 export type GapKeyword = {

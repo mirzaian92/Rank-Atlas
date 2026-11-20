@@ -16,7 +16,10 @@ export const labsBase = (t: LabsTarget) => ({ target: t.domain, location_code: t
 export const rankOverviewPayload = (t: LabsTarget) => ({ ...labsBase(t), limit: 1 });
 
 /** First day of the month `months - 1` months ago (UTC), so the payload is stable within a day. */
-export function historyPayload(t: LabsTarget, months = 24) {
+/** Default organic-history window. The provider bills per month returned (≈ $0.0057/month), so 12 is the default everywhere. */
+export const DEFAULT_HISTORY_MONTHS = 12;
+
+export function historyPayload(t: LabsTarget, months = DEFAULT_HISTORY_MONTHS) {
   const now = new Date();
   const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1));
   return { ...labsBase(t), date_from: from.toISOString().slice(0, 10) };
@@ -27,7 +30,7 @@ export async function getRankOverview(t: LabsTarget, tool: ToolId) {
   return { item: r.result[0]?.items?.[0] ?? null, costUsd: r.costUsd, cached: r.cached };
 }
 
-export async function getHistory(t: LabsTarget, tool: ToolId, months = 24): Promise<{ history: DomainHistoryPoint[]; costUsd: number; cached: boolean }> {
+export async function getHistory(t: LabsTarget, tool: ToolId, months = DEFAULT_HISTORY_MONTHS): Promise<{ history: DomainHistoryPoint[]; costUsd: number; cached: boolean }> {
   const r = await dfsCall<DfsLabsItemsResult<DfsHistoricalRankItem>>("historicalRankOverview", historyPayload(t, months), { tool });
   return { history: normalizeHistory(r.result[0]?.items ?? []), costUsd: r.costUsd, cached: r.cached };
 }

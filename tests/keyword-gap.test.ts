@@ -47,8 +47,8 @@ describe("mergeGap", () => {
 
 describe("estimateGapCost", () => {
   it("is 3 requests per competitor plus one overview per domain", () => {
-    expect(estimateGapCost(2, 200)).toBeCloseTo(3 * 0.03 + 2 * 0.0101, 6);
-    expect(estimateGapCost(5, 1000)).toBeCloseTo(4 * 3 * 0.11 + 5 * 0.0101, 6);
+    expect(estimateGapCost(2, 200)).toBeCloseTo(3 * (0.012 + 0.024) + 2 * 0.01212, 6);
+    expect(estimateGapCost(5, 1000)).toBeCloseTo(4 * 3 * (0.012 + 0.12) + 5 * 0.01212, 6);
   });
 });
 

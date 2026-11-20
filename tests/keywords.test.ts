@@ -41,3 +41,21 @@ describe("normalizeSerp", () => {
     expect(normalizeSerp(null)).toEqual([]);
   });
 });
+
+import { resolveSerpTarget } from "@/lib/dataforseo/normalize/keywords";
+import { QUESTION_REGEX, isQuestion as isQ } from "@/lib/reports/keyword-query";
+describe("real-API regressions (Nov 2026)", () => {
+  it("recovers the real host from Google redirect results via the breadcrumb", () => {
+    expect(resolveSerpTarget({ url: "https://google.com/goto?url=CAES123", domain: "google.com", breadcrumb: "https://www.pagetraffic.com › Blog › SEO" }))
+      .toEqual({ url: "https://www.pagetraffic.com/", domain: "www.pagetraffic.com" });
+    expect(resolveSerpTarget({ url: "https://dataforseo.com/blog", domain: "dataforseo.com", breadcrumb: "https://dataforseo.com › blog" }))
+      .toEqual({ url: "https://dataforseo.com/blog", domain: "dataforseo.com" });
+    expect(resolveSerpTarget({ url: "https://google.com/goto?url=X", domain: "google.com", breadcrumb: "20+ comments · 1 month ago" }).domain).toBe("google.com");
+  });
+  it("question regex uses a word boundary (provider trims trailing spaces)", () => {
+    expect(QUESTION_REGEX.endsWith("\\b")).toBe(true);
+    expect(isQ("download rank tracker")).toBe(false);
+    expect(isQ("do rank trackers work")).toBe(true);
+    expect(isQ("how to use rank tracker")).toBe(true);
+  });
+});

@@ -82,7 +82,7 @@ function Inner() {
         return (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <MetricCard mock={mock} label="Results" value={fmtCompact(d.resultsCount)} sub="Reported by Google" />
+              <MetricCard mock={mock} label="Results count" value={fmtCompact(d.resultsCount)} sub="As reported by DataForSEO" info="DataForSEO's se_results_count. Google no longer shows full 'About N results' counts, so this can be far smaller than the web's real total — don't read it as competition." />
               <MetricCard mock={mock} label="Organic results" value={organic.length} sub={`Top ${depth} · ${d.device}`} />
               <MetricCard mock={mock} label="SERP features" value={d.features.filter((f) => f.type !== "organic").length} sub={`${new Set(top10).size} unique domains in top 10`} />
               <MetricCard

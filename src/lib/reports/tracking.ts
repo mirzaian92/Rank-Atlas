@@ -6,7 +6,7 @@ import type { PositionTracking } from "./types";
 
 export const TRACK_DEPTHS = [10, 20, 50, 100] as const;
 
-/** Standard-queue SERP estimate per keyword check (≈ $0.0006 per 10 results — VERIFY pricing). */
+/** Standard-queue SERP cost per keyword check: $0.0006 per 10 results (verified Nov 2026). */
 export function estimateCheckCost(depth: number) {
   return 0.0006 * Math.ceil(depth / 10);
 }

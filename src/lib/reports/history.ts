@@ -32,5 +32,9 @@ export function countMissing(rows: { missing?: boolean }[]): number {
   return rows.filter((r) => r.missing).length;
 }
 
-export const HISTORY_SPANS = { "2y": 24, "5y": 60 } as const;
+export const HISTORY_SPANS = { "1y": 12, "2y": 24, "5y": 60 } as const;
+/** Organic history is billed per month returned (measured Nov 2026: 24 months = $0.1488). Backlink history is flat ≈ $0.024. */
+export function estimateHistoryCost(months: number) {
+  return 0.012 + 0.0057 * months + 0.024;
+}
 export type HistorySpan = keyof typeof HISTORY_SPANS;

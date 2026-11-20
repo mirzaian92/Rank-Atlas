@@ -8,6 +8,7 @@ import type {
   DfsLabsItemsResult, DfsRankedKeywordItem, DfsRelevantPageItem,
 } from "../types";
 import { intentOf, monthKey, num, numOrNull, positionBuckets } from "./common";
+import { dfsDate } from "./backlinks";
 
 export function normalizeHistory(items: DfsHistoricalRankItem[]): DomainHistoryPoint[] {
   return items
@@ -43,7 +44,7 @@ export function normalizeRankedKeywords(items: DfsRankedKeywordItem[], domainEtv
       intent: intentOf(kd.search_intent_info?.main_intent),
       url: si.url,
       serpFeatures: (se.serp_item_types ?? []).filter((t) => t !== "organic"),
-      lastUpdated: se.last_updated_time ?? null,
+      lastUpdated: dfsDate(se.last_updated_time),
       isNew: Boolean(si.rank_changes?.is_new),
     };
   });
@@ -134,7 +135,7 @@ export function normalizeDomainOverview(raw: DomainOverviewRaw): DomainOverview 
           dofollow: Math.max(0, num(bl.backlinks) - nofollow),
           nofollow,
           referringIps: numOrNull(bl.referring_ips),
-          topAnchors: (raw.anchors?.items ?? []).map((a) => ({ anchor: a.anchor, backlinks: num(a.backlinks), referringDomains: num(a.referring_domains) })),
+          topAnchors: (raw.anchors?.items ?? []).map((a) => ({ anchor: a.anchor ?? "", backlinks: num(a.backlinks), referringDomains: num(a.referring_domains) })),
           tlds: Object.entries(bl.referring_links_tld ?? {})
             .map(([tld, n]) => ({ tld: tld.startsWith(".") ? tld : `.${tld}`, referringDomains: num(n) }))
             .sort((a, b) => b.referringDomains - a.referringDomains)

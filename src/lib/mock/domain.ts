@@ -226,8 +226,8 @@ export function mockOrganicCompetitors(domain: string, ctx: MockCtx): OrganicCom
   return { domain, target: { organicKeywords: h.organicKeywords, organicEtv: h.organicEtv }, competitors: [...comps, ...generic] };
 }
 
-export function mockHistoricalTrends(domain: string, ctx: MockCtx, span: "2y" | "5y" = "2y"): HistoricalTrends {
-  const months = span === "5y" ? 60 : 24;
+export function mockHistoricalTrends(domain: string, ctx: MockCtx, span: "1y" | "2y" | "5y" = "1y"): HistoricalTrends {
+  const months = span === "5y" ? 60 : span === "2y" ? 24 : 12;
   const history = mockHistory(domain, ctx, months);
   const r = rng(`${domain}|bl-history|${span}`);
   const bl = walk(r, months, r.logInt(5000, 5_000_000), 0.01, 0.04);

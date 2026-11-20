@@ -25,6 +25,6 @@ describe("estimateSerpCost", () => {
   it("charges per 10 results plus optional Domain Rank lookup", () => {
     expect(estimateSerpCost(10, false)).toBeCloseTo(0.002, 6);
     expect(estimateSerpCost(100, false)).toBeCloseTo(0.02, 6);
-    expect(estimateSerpCost(10, true)).toBeCloseTo(0.002 + 0.02 + 0.0003, 6);
+    expect(estimateSerpCost(10, true)).toBeCloseTo(0.002 + 0.024 + 0.00036, 6);
   });
 });

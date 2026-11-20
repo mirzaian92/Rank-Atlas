@@ -16,7 +16,8 @@ import { Card } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/tabs";
 import { useSettingsSummary } from "@/components/layout/app-header";
 import { useSearchState } from "@/lib/client/use-search-state";
-import { fmtCompact, fmtDate, fmtNumber, pctChange } from "@/lib/utils";
+import { fmtCompact, fmtCurrency, fmtDate, fmtNumber, pctChange } from "@/lib/utils";
+import { HISTORY_SPANS, estimateHistoryCost } from "@/lib/reports/history";
 
 export default function Page() {
   return <Suspense><Inner /></Suspense>;
@@ -51,8 +52,8 @@ function ends<T extends { date: string }>(rows: T[], key: keyof T) {
 
 function Inner() {
   const { get, setParams } = useSearchState();
-  const span = get("span") === "5y" ? "5y" : "2y";
-  const range = (get("range") as RangeValue) ?? (span === "5y" ? "all" : "2y");
+  const span = get("span") === "5y" ? "5y" : get("span") === "2y" ? "2y" : "1y";
+  const range = (get("range") as RangeValue) ?? "all";
   const { data: settings } = useSettingsSummary();
   const live = Boolean(settings?.live.enabled && settings.credentials.configured && settings.live.tools.find((t) => t.id === "historical-trends")?.listed);
   return (
@@ -65,11 +66,16 @@ function Inner() {
         <>
           <Segmented
             value={span}
-            onChange={(v) => setParams({ span: v === "2y" ? null : v, range: null }, { replace: true })}
-            options={[
-              { value: "2y", label: "2 years" },
-              { value: "5y", label: <span title={live ? "Two extra paid requests (≈ $0.04) unless cached" : undefined}>5 years</span> },
-            ]}
+            onChange={(v) => setParams({ span: v === "1y" ? null : v, range: null }, { replace: true })}
+            options={(["1y", "2y", "5y"] as const).map((sp) => ({
+              value: sp,
+              label: (
+                <span title={live ? (sp === "1y" ? "Shared with Domain Overview / Organic Research — usually free from cache" : `Organic history is billed per month: ≈ ${fmtCurrency(estimateHistoryCost(HISTORY_SPANS[sp]), 2)} unless cached`) : undefined}>
+                  {sp === "1y" ? "1 year" : sp === "2y" ? "2 years" : "5 years"}
+                  {live && sp !== "1y" ? ` · ≈${fmtCurrency(estimateHistoryCost(HISTORY_SPANS[sp]), 2)}` : ""}
+                </span>
+              ),
+            }))}
           />
           <DateRangeControl value={range} onChange={(v) => setParams({ range: v }, { replace: true })} />
         </>

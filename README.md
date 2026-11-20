@@ -6,8 +6,8 @@ Next.js App Router · TypeScript · Tailwind CSS v4 · shadcn/ui-style component
 > **Status:** All 14 tools have full UI with **labelled mock data**, and every tool has a live
 > DataForSEO implementation (13 integrations; Keyword Overview and Keyword Difficulty share one).
 > Live mode is **switched off** by default, and no paid requests are made unless you enable it.
-> The live code has been tested against a local fake API, not yet against DataForSEO itself.
-> See `docs/INTEGRATION.md` for the items to verify before going live.
+> The integrations were verified against the real DataForSEO API in Nov 2026; findings, fixes and
+> measured prices are in `docs/INTEGRATION.md`.
 
 ## Local setup
 

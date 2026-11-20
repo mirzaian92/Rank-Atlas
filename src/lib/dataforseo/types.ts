@@ -101,7 +101,7 @@ export type DfsBacklinksSummary = {
   referring_links_attributes: Record<string, number> | null;
 };
 
-export type DfsAnchorsResult = { total_count: number; items: { anchor: string; backlinks: number; referring_domains: number; referring_links_attributes?: Record<string, number> | null }[] | null };
+export type DfsAnchorsResult = { total_count: number; items: { anchor: string | null; backlinks: number; referring_domains: number; referring_links_attributes?: Record<string, number> | null }[] | null };
 
 export type DfsUserData = {
   login: string;
@@ -137,6 +137,8 @@ export type DfsSerpItem = {
   title?: string | null;
   url?: string | null;
   description?: string | null;
+  breadcrumb?: string | null;
+  website_name?: string | null;
   items?: { title?: string | null }[] | null;
 };
 export type DfsSerpResult = {

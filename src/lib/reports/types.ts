@@ -280,7 +280,7 @@ export type BacklinkHistoryRow = { date: string; missing?: boolean; backlinks: n
 
 export type HistoricalTrends = {
   domain: string;
-  span: "2y" | "5y";
+  span: "1y" | "2y" | "5y";
   history: HistoryRow[];
   backlinkHistory: BacklinkHistoryRow[];
   /** Point-in-time values stored from earlier live Domain Overview lookups (this app's own record). */

@@ -38,7 +38,7 @@ function Inner() {
               </MetricCard>
               <MetricCard mock={mock} label="CPC" value={fmtCurrency(k.cpc)} sub="Avg. cost per click, USD" />
               <MetricCard mock={mock} label="Paid competition" value={k.competition?.toFixed(2) ?? "—"} sub="0 (low) – 1 (high)" info="Advertiser competition from Google Ads. Not organic difficulty." />
-              <MetricCard mock={mock} label="Intent" value={<span className="flex items-center gap-2 text-lg capitalize"><IntentBadge intent={k.intent} />{k.intent ?? "—"}</span>} sub={`${fmtCompact(k.resultsCount)} results`} />
+              <MetricCard mock={mock} label="Intent" value={<span className="flex items-center gap-2 text-lg capitalize"><IntentBadge intent={k.intent} />{k.intent ?? "—"}</span>} sub="Provider's search intent classification" />
             </div>
             <div className="grid gap-4 xl:grid-cols-3">
               <Section className="xl:col-span-2" title="Search volume trend" mock={mock} info="Monthly searches for the last 12 months.">

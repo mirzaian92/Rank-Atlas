@@ -41,7 +41,7 @@ function h<P>(x: Handler<P>) {
 
 export const REPORTS: Record<ToolId, Handler<unknown>> = {
   "domain-overview": h({
-    schema: q(domainSchema).extend({ months: z.coerce.number().int().min(1).max(60).default(24) }),
+    schema: q(domainSchema).extend({ months: z.coerce.number().int().min(1).max(60).default(12) }),
     mock: (p) => mockDomainOverview(p.q, p),
     live: (p) => fetchDomainOverview({ domain: p.q, locationCode: p.locationCode, languageCode: p.languageCode, months: p.months }),
     notes: [ETV_NOTE],
@@ -120,7 +120,7 @@ export const REPORTS: Record<ToolId, Handler<unknown>> = {
   }),
   "site-audit": h({ schema: q(domainSchema), mock: (p) => mockSiteAudit(p.q) }),
   "historical-trends": h({
-    schema: q(domainSchema).extend({ span: z.enum(["2y", "5y"]).default("2y") }),
+    schema: q(domainSchema).extend({ span: z.enum(["1y", "2y", "5y"]).default("1y") }),
     mock: (p) => mockHistoricalTrends(p.q, p, p.span),
     live: (p) => fetchHistoricalTrends({ domain: p.q, locationCode: p.locationCode, languageCode: p.languageCode }, p.span),
     notes: [ETV_NOTE],

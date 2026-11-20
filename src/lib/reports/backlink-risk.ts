@@ -29,7 +29,7 @@ export function spamDistribution(scores: (number | null)[]) {
 }
 
 export const AUDIT_SAMPLES = [500, 1000] as const;
-/** referring_domains (≈$0.02 + $0.00003/row) + bulk_spam_score (≈$0.02 + $0.00003/target). */
+/** referring_domains ($0.024 + $0.000036/row) + bulk_spam_score ($0.024 + $0.000036/target). */
 export function estimateAuditCost(sample: number) {
-  return 0.02 + 0.00003 * sample + 0.02 + 0.00003 * sample;
+  return 0.024 + 0.000036 * sample + 0.024 + 0.000036 * sample;
 }

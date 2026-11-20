@@ -4,23 +4,68 @@ Integrate **one tool at a time**, in this order. A tool goes live only after eve
 
 | # | Tool | Status |
 |---|---|---|
-| 1 | Domain Overview | **Ready** — live code written and tested against a local fake server; not yet run against the real API |
-| 2 | Organic Research | **Ready** — server-side paging, sorting and filters; tested against the fake server; not yet run against the real API |
-| 3 | Keyword Overview (+ Keyword Difficulty) | **Ready** — tested against the fake server; not yet run against the real API |
-| 4 | Keyword Magic Tool | **Ready** — server-side paging/sort/filters across 5 modes; tested against the fake server; not yet run against the real API |
-| 5 | Organic Competitors | **Ready** — tested against the fake server; not yet run against the real API |
-| 6 | Keyword Gap | **Ready** — pairwise intersections merged; verified against fake-server ground truth; not yet run against the real API |
-| 7 | Position Tracking | **Ready** — projects in Postgres, standard-queue checks, collection on view + daily cron; verified against fake ground truth |
-| 8 | Backlink Analytics | **Ready** — summary + history + 3 server-paged tables; tested against the fake server |
-| 9 | Backlink Gap | **Ready** — one domain_intersection request per tab page; verified against fake ground truth |
-| 10 | Backlink Audit | **Ready** — referring_domains sample + bulk_spam_score + local risk rules |
-| 11 | Site Audit | **Ready** — OnPage crawl start/poll/finalize; reports stored locally with crawl history |
-| 12 | Historical Domain Trends | **Ready** — reuses Domain Overview / Backlink Analytics history payloads; gaps preserved |
-| 13 | SERP Analysis | **Ready** — device/depth, optional Domain Rank, re-check bypasses cache |
+| 1 | Domain Overview | **Verified** — full app run on the real API (Nov 2026) |
+| 2 | Organic Research | **Verified** — request shapes (nested filters, `has`, `ilike`, etv sort) accepted by the real API; shares Domain Overview's calls |
+| 3 | Keyword Overview (+ Keyword Difficulty) | **Verified** — full app run on the real API; two bugs fixed (see below) |
+| 4 | Keyword Magic Tool | **Verified** — every mode's request shape accepted by the real API |
+| 5 | Organic Competitors | **Verified** — `order_by: intersections` accepted; target appears as its own first row (filtered) |
+| 6 | Keyword Gap | **Verified** — `domain_intersection` fields (`first_/second_domain_serp_element`) confirmed |
+| 7 | Position Tracking | **Verified** — `task_post` tag echo, `40602 Task in queue` → result flow, domain matching on real SERP |
+| 8 | Backlink Analytics | **Verified** — backlinks filters (dofollow, item_type, nested OR `like`) and fields confirmed |
+| 9 | Backlink Gap | **Verified** — `targets` / `exclude_targets` / `1.rank` sort+filter accepted; referring domain is in `target` |
+| 10 | Backlink Audit | **Verified** (docs + sandbox) — `bulk_spam_score` shape confirmed |
+| 11 | Site Audit | **Verified** — real 10-page crawl: task_post → summary → pages (`order_by onpage_score`) |
+| 12 | Historical Domain Trends | **Verified** — real pricing measured; default changed to 12 months |
+| 13 | SERP Analysis | **Verified** — real SERP; Google redirect-link results handled; `bulk_ranks` honours `rank_scale` |
 
-> ⚠️ `docs.dataforseo.com` was not reachable from the build environment. Endpoint paths and fields below
-> were written from DataForSEO v3 knowledge. Items marked **VERIFY** must be checked against the official
-> docs (or a sandbox response) before the tool's first paid request.
+## Real-API verification (Nov 2026)
+
+Done in three passes:
+1. The official docs, checked endpoint by endpoint (free).
+2. The DataForSEO **sandbox** for every report (free, real response format).
+3. **Real requests:** one per uncertain request shape (`limit: 1`), plus full app runs of Domain Overview and Keyword Overview.
+
+Total spend ≈ $0.50.
+
+**Bugs found and fixed**
+
+| Bug | Fix |
+|---|---|
+| Error mapping treated every 401xx code as "not authorized" | Only 40100/40104/40201/40207 are account problems. 40101/40103/40107 are temporary provider errors, 40106 is partial success, 40203 is the provider-side cost limit. Full table in `errors.ts` and `tests/errors.test.ts`. |
+| Live SERP results can be Google redirect links (`google.com/goto?url=…`, domain `google.com`) | The real host is recovered from `breadcrumb` (`resolveSerpTarget`). Used by SERP tables and rank-check matching. |
+| Question filter `^(how|…|do) ` matched "download…" | DataForSEO trims the trailing space, so it now uses a word boundary `\b`. |
+| `historical_rank_overview` is billed per month returned: 24 months cost **$0.149** (10× the estimate) | Default history window is now 12 months (Domain Overview, Organic Research, Historical Trends 1y, all sharing one cache entry). 2y/5y show their price. |
+| Response cache key didn't include the API base URL, so sandbox data could be served as production | Base URL is now part of the key. |
+| Ranked keywords' `last_updated_time` wasn't converted to ISO | Fixed. |
+| Domain Overview top anchors could be `null` | Fixed; shown as "(empty)". |
+| `irrelevant_meta_keywords` and similar OnPage checks were unmapped | Now mapped as notices. |
+
+**Measured prices** (all estimates in the code updated to these)
+
+| API | Price |
+|---|---|
+| Labs | $0.012 per task + $0.00012 per returned row |
+| Labs `historical_rank_overview` | ≈ $0.012 + $0.0057 per month returned |
+| Backlinks | $0.024 per task + $0.000036 per row (history is flat ≈ $0.024) |
+| SERP | $0.0006 (standard queue) / $0.002 (live) per 10 results |
+| OnPage | $0.00015 per crawled page; summary and pages are free |
+
+**Confirmed from the docs:**
+- Labs filters allow up to 8 conditions.
+- `regex` is RE2.
+- `has` works on arrays.
+- `in` takes an array.
+- Nested `[cond, "or", cond]` groups work.
+- `order_by` accepts at most 3 rules.
+- `exact_match` means phrase match.
+- Backlinks history starts 2019-01-01; Labs history starts 2020-10-01.
+- `exclude_targets` accepts up to 10 domains.
+
+**Not verified on the real API** (low risk, but untested):
+- LIKE-wildcard escaping in user text (`\%`, `\_`).
+- A full app run of every remaining tool. Their request shapes were verified individually, and their response shapes were checked on the sandbox and in the docs.
+
+**Running behind an HTTPS proxy:** Node's `fetch` ignores `HTTPS_PROXY`. Start the app with `NODE_USE_ENV_PROXY=1` (Node ≥ 22.21) and, if the proxy uses a private CA, `NODE_EXTRA_CA_CERTS=<bundle>`.
 
 ## How to add a tool's live integration
 
@@ -59,7 +104,7 @@ All requests are `POST` with a JSON array containing one task. Common fields: `t
 | # | Endpoint | Payload (besides target/location/language) | Used for | Required |
 |---|---|---|---|---|
 | 1 | `/v3/dataforseo_labs/google/domain_rank_overview/live` | `limit: 1` | KPI row: organic/paid `count`, `etv`, `estimated_paid_traffic_cost`; position buckets `pos_1` … `pos_91_100`; `is_new/up/down/lost` | **yes** |
-| 2 | `/v3/dataforseo_labs/google/historical_rank_overview/live` | `date_from: YYYY-MM-DD` (24 months back) | trend charts, previous-month deltas, "Data for" month picker | no |
+| 2 | `/v3/dataforseo_labs/google/historical_rank_overview/live` | `date_from: YYYY-MM-DD` (12 months back) | trend charts, previous-month deltas, "Data for" month picker | no |
 | 3 | `/v3/dataforseo_labs/google/ranked_keywords/live` | `limit: 100`, `item_types: ["organic"]`, `order_by: ["ranked_serp_element.serp_item.etv,desc"]` | top keywords table (10 shown), intent donut (sample of 100), total count | no |
 | 4 | `/v3/dataforseo_labs/google/competitors_domain/live` | `limit: 11` (target is filtered out) | competitors table and positioning map | no |
 | 5 | `/v3/dataforseo_labs/google/relevant_pages/live` | `limit: 6`, `order_by: ["metrics.organic.etv,desc"]` | top pages | no |
@@ -80,18 +125,18 @@ All requests are `POST` with a JSON array containing one task. Common fields: `t
 
 `countries` (traffic by country) is `null` in live mode, and the card hides itself. To add it later, check whether `domain_rank_overview` without `location_code` returns per-location items, or use `/v3/dataforseo_labs/google/bulk_traffic_estimation/live`.
 
-### Cost per uncached lookup (pre-flight estimates — VERIFY at dataforseo.com/pricing)
+### Cost per uncached lookup (measured on the real API, Nov 2026)
 
-| Call | Estimate |
+| Call | Cost |
 |---|---|
-| domain_rank_overview | ~$0.0101 |
-| historical_rank_overview | ~$0.0125 |
-| ranked_keywords (100) | ~$0.0200 |
-| competitors_domain (11) | ~$0.0111 |
-| relevant_pages (6) | ~$0.0106 |
-| backlinks/summary | ~$0.0200 |
-| backlinks/anchors (6) | ~$0.0202 |
-| **Total** | **≈ $0.10 per domain + market** |
+| domain_rank_overview | $0.0121 |
+| historical_rank_overview (12 months) | ≈ $0.080 (billed per month) |
+| ranked_keywords (100) | $0.024 |
+| competitors_domain (11) | $0.0133 |
+| relevant_pages (6) | $0.0127 |
+| backlinks/summary | $0.024 |
+| backlinks/anchors (6) | $0.0242 |
+| **Total** | **≈ $0.19 per domain + market** (it was $0.26 with 24 months of history) |
 
 Repeat lookups are free until the cache entries expire: 7 days for Labs overview, history, competitors and pages; 3 days for ranked keywords; 1 day for backlinks. The defaults are $0.50 per request, $5 per day and $50 per month, adjustable in Settings.
 

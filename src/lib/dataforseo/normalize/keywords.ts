@@ -37,19 +37,39 @@ const FEATURE_TITLES: Record<string, string> = {
   paid: "Ad",
 };
 
+/**
+ * Some live SERPs return organic results as Google redirect links (url = google.com/goto?url=…,
+ * domain = google.com). The real site is still in `breadcrumb` ("https://www.site.com › blog › …"),
+ * so recover the host from it. The exact page URL isn't recoverable; the site origin is used.
+ */
+export function resolveSerpTarget(it: { url?: string | null; domain?: string | null; breadcrumb?: string | null }): { url: string; domain: string } {
+  const url = it.url ?? "";
+  const domain = it.domain ?? "";
+  const isRedirect = /^https?:\/\/(www\.)?google\.[a-z.]+\/(goto|url)\?/i.test(url);
+  if (!isRedirect) return { url, domain };
+  const crumb = (it.breadcrumb ?? "").split("›")[0].trim();
+  const m = crumb.match(/^(https?:\/\/)?([a-z0-9.-]+\.[a-z]{2,})/i);
+  if (!m) return { url, domain };
+  const host = m[2].toLowerCase();
+  return { url: `https://${host}/`, domain: host };
+}
+
 export function normalizeSerp(r: DfsSerpResult | null | undefined): SerpResult[] {
-  return (r?.items ?? []).map((it, i) => ({
+  return (r?.items ?? []).map((it, i) => {
+    const target = resolveSerpTarget(it);
+    return {
     rank: it.rank_absolute ?? i + 1,
     type: it.type,
     title: it.title?.trim() || FEATURE_TITLES[it.type] || it.type.replace(/_/g, " "),
-    url: it.url ?? "",
-    domain: it.domain ?? "",
+    url: target.url,
+    domain: target.domain,
     description: it.description ?? null,
     // Not part of the SERP response; would need an extra Backlinks / Labs call per domain.
     etv: null,
     domainRank: null,
     backlinks: null,
-  }));
+    };
+  });
 }
 
 /** Count result types on the page, e.g. { organic: 10, people_also_ask: 1 }. */
