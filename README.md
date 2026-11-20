@@ -152,7 +152,7 @@ Later page loads and production builds are unaffected. Re-enable the cache once 
 3. Set `APP_ENCRYPTION_KEY` (a fresh key) and keep `DATAFORSEO_LIVE_ENABLED=false` until login exists.
 4. Set `CRON_SECRET` (any long random string). `vercel.json` schedules `/api/cron/daily` twice each morning (UTC): it runs Position Tracking checks and finishes Site Audit crawls.
 
-The `vercel-build` script (`scripts/vercel-build.mjs`) runs `prisma migrate deploy` when `DATABASE_URL` is set, then `next build`. Without a database it skips migrations, so a mock-only deploy still builds.
+The `vercel-build` script (`scripts/vercel-build.mjs`) runs `prisma migrate deploy` when `DATABASE_URL` is set, then `next build`. Migrations use `DATABASE_URL_UNPOOLED` (set by Neon / Vercel Postgres) when present, because pooled connections can break migrations; the app itself uses the pooled `DATABASE_URL`. Without a database it skips migrations, so a mock-only deploy still builds.
 
 ⚠️ There is no login yet. Turn on Vercel **Deployment Protection** before adding real credentials.
 
